@@ -21,23 +21,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase || !s) return setProfile(null)
     // The last profile seen is kept on the device, so the app (and your collection) still opens offline.
     const key = `profile:${s.user.id}`
+    const saved = localStorage.getItem(key)
+    if (saved) setProfile(JSON.parse(saved) as Profile) // show at once; refreshed below
     try {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', s.user.id).maybeSingle()
       if (error) throw new Error(error.message)
       if (data) localStorage.setItem(key, JSON.stringify(data))
       setProfile((data as Profile | null) ?? null)
     } catch {
-      const cached = localStorage.getItem(key)
-      setProfile(cached ? (JSON.parse(cached) as Profile) : null)
+      if (!saved) setProfile(null)
     }
   }, [])
 
   useEffect(() => {
     if (!supabase) return
-    supabase.auth.getSession().then(async ({ data }) => {
+    supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
-      await loadProfile(data.session)
       setReady(true)
+      void loadProfile(data.session)
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s)
