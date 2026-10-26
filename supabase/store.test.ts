@@ -89,8 +89,11 @@ describe('CollectionStore', () => {
     // online change
     let d = new Draft(phone.collection, nameOf)
     const s = d.add({ card_key: '14558127', qty: 3 }, unsorted.id)
+    const before = phone.version
     await phone.apply(d.finish('add', 'add'))
     expect(phone.pending).toBe(0)
+    // the UI must hear about the confirmation too, not only the change
+    expect(phone.version).toBeGreaterThanOrEqual(before + 2)
 
     // offline: two changes wait in the queue, and survive a "restart"
     online = false

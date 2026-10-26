@@ -3,8 +3,8 @@ import type { CollectionStore } from '../../core/collection/store.ts'
 
 /** Unsaved changes, offline state and conflicts for your own collection. */
 export function SyncBanner({ store }: { store: CollectionStore }) {
-  // re-render on every store change
-  useSyncExternalStore(store.subscribe, store.getSnapshot)
+  // Re-render on every store event: confirming a queued change doesn't change the collection itself.
+  useSyncExternalStore(store.subscribe, store.getVersion)
   const { pending, offline, conflicts, error } = store
   if (!pending && !offline && !conflicts.length && !error) return null
   return (

@@ -70,7 +70,14 @@ export class CollectionStore {
 
   getSnapshot = () => this.state
 
+  /** Bumps on every change, including ones that leave the collection as it was (a queued change confirmed). */
+  version = 0
+
+  /** Snapshot for UI that shows sync state (pending, offline, conflicts), not just the collection. */
+  getVersion = () => this.version
+
   private emit() {
+    this.version++
     for (const fn of this.listeners) fn()
   }
 
