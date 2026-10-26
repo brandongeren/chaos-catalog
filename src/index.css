@@ -884,3 +884,35 @@ pre.lf {
 .chips.tabs {
   margin-bottom: 0.75rem;
 }
+
+.up {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+.down {
+  color: var(--banned);
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  .up {
+    color: #7bd88f;
+  }
+}
+
+a.result {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sync {
+  margin: 0 0 0.75rem;
+}
+
+.sync p {
+  margin: 0.25rem 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: var(--bg-soft);
+}

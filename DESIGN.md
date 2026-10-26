@@ -255,7 +255,9 @@ cards", off by default).
 - Source: TCGplayer market prices (USD) per printing and edition, via TCGCSV (§16). A card's own price is its cheapest
   printing, falling back to YGOPRODeck's lowest TCGplayer price.
 - The daily job saves today's snapshot and keeps the **last 28 days**, removing the oldest each day.
-- **Movers page:** your cards ranked by change vs 7, 14, 21 or 28 days ago, with a **$ / %** toggle.
+- **Movers page:** your cards (or all cards) ranked by change vs 7, 14, 21 or 28 days ago, rising or falling, with a
+  **$ / %** toggle and a minimum price (default $1) so tiny prices don't dominate the % view. Collection value uses the
+  exact printing and edition when recorded, else the printing's cheapest edition, else the card's cheapest printing.
 - Collection value totals per box, group and deck (hidden for viewers if the owner turned prices off).
 
 ---
@@ -275,6 +277,15 @@ cards", off by default).
   day one keeps that step small.
 
 ---
+
+### As built (2026-10-26)
+- `CollectionStore` keeps `base` (last server-confirmed copy) and a `queue` of unconfirmed ops, both in IndexedDB;
+  the screen shows base + queue. Ops are sent at once, in batches of 20, in order; offline they wait and are sent on
+  the browser's `online` event or every 30 s. A rejected op becomes a **conflict** (shown in a banner with its summary;
+  nothing is overwritten); the store reloads and re-checks the rest of the queue, moving any that no longer fit to
+  conflicts too. Tested against the real SQL in PGlite with a fake client that goes offline (`supabase/store.test.ts`).
+- A service worker caches the app shell (HTML, hashed assets, icons) so the installed app opens offline; card data
+  and collections come from IndexedDB, so the worker leaves `data/` and API calls alone.
 
 ## 12. Camera scanning
 
@@ -312,8 +323,8 @@ card category (100 free calls a month, then paid). Risk: foils, glare and small 
 | 4. Deck formats | Import (all formats incl. Neuron), pull list, missing cards, LF list, export | built 2026-10-26; links need the fetch-deck function deployed |
 | 5. Collection files | JSON and CSV import/export | built 2026-10-26 |
 | 6. Social | Invites, profiles, city, privacy, friends, availability, who-has-it, requests, lending, wants, trade matching | built 2026-10-26; needs migration 0003 |
-| 7. Prices | Daily price files, values, movers page |  |
-| 8. Offline | Operation queue, conflict screen |  |
+| 7. Prices | Daily price files, values, movers page | built 2026-10-26 |
+| 8. Offline | Operation queue, conflict screen | built 2026-10-26 |
 | 9. Scanning | Camera, card detection, OCR, confirm list |  |
 | 10. Extras | Syntax search mode and guide, placement suggestions, card artwork |  |
 

@@ -15,6 +15,8 @@ import { HistoryPage } from './ui/collection/HistoryPage.tsx'
 import { DataPage } from './ui/collection/DataPage.tsx'
 import { DecksPage } from './games/ygo/ui/DecksPage.tsx'
 import { FriendsPage } from './ui/social/FriendsPage.tsx'
+import { PricesPage } from './games/ygo/ui/PricesPage.tsx'
+import { SyncBanner } from './ui/collection/SyncBanner.tsx'
 
 type State =
   | { status: 'loading' }
@@ -34,6 +36,7 @@ function useCollectionFor(owner: Profile | null | undefined, readOnly: boolean, 
   const store = useMemo(() => (owner ? new CollectionStore(owner.id, readOnly) : undefined), [owner?.id, readOnly]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     void store?.load()
+    return () => store?.dispose()
   }, [store])
   return useMemo<CollectionContextValue | null>(
     () => (store && owner && searcher ? { store, owner, readOnly, searcher } : null),
@@ -102,11 +105,11 @@ function Shell() {
           {tab('search', 'Search')}
           {profile && tab('collection', 'Collection')}
           {tab('decks', 'Decks')}
+          {tab('prices', 'Prices')}
           {profile && tab('friends', 'Friends')}
           {profile && tab('history', 'History')}
           {tab('account', session ? 'Account' : 'Sign in')}
         </nav>
-        {own?.store.pending ? <span className="muted small">saving…</span> : null}
       </header>
       {viewingOther && (
         <p className="bulkbar">
@@ -129,6 +132,7 @@ function Shell() {
           </button>
         </p>
       )}
+      {own && <SyncBanner store={own.store} />}
       <main>
         {state.status === 'loading' && <p className="muted">Loading cards…</p>}
         {state.status === 'error' && (
@@ -142,6 +146,7 @@ function Shell() {
             {(view === 'collection' || view === 'user') && (ctx ? <CollectionPage /> : <SignInHint />)}
             {view === 'history' && (ctx ? <HistoryPage /> : <SignInHint />)}
             {view === 'decks' && <DecksPage searcher={searcher} prices={prices} />}
+            {view === 'prices' && state.status === 'ok' && <PricesPage searcher={searcher} meta={state.meta} today={prices} />}
             {view === 'friends' && <FriendsPage searcher={searcher} tab={params.get('tab') ?? undefined} />}
             {view === 'data' && (ctx ? <DataPage /> : <SignInHint />)}
             {view === 'account' && <AccountPage inviteCode={params.get('invite') ?? undefined} />}

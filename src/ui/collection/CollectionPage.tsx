@@ -142,14 +142,6 @@ export function CollectionPage() {
       </aside>
 
       <section className="pane">
-        {ctx.store.error && (
-          <p className="error">
-            {ctx.store.error}{' '}
-            <button type="button" className="link" onClick={() => ctx.store.dismissError()}>
-              Dismiss
-            </button>
-          </p>
-        )}
         {selectedGroup && c.groups.get(selectedGroup) ? (
           <GroupView group={c.groups.get(selectedGroup)!} onDialog={setDialog} />
         ) : selectedBox && c.boxes.get(selectedBox) ? (

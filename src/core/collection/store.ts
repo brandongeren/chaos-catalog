@@ -1,13 +1,19 @@
-// A user's collection in memory: loaded from Supabase (cached in IndexedDB for fast starts), changed with ops.
-// Every change shows on screen at once (applyOp) and is sent to apply_ops() right away; if the server rejects it
-// (the collection changed on another device), the store reloads and reports the conflict.
+// A user's collection in memory, kept in step with Supabase.
+//
+// - `base` is the last copy confirmed by the server; `queue` holds changes not yet confirmed (saved in IndexedDB, so
+//   they survive closing the app); what you see is base + queue.
+// - Every change is queued and sent right away. Without a connection it waits and is sent when the browser comes back
+//   online (and every 30 s).
+// - If the server rejects a change (the same rows changed on another device), it moves to `conflicts`, the collection
+//   is reloaded, and any later queued changes that no longer fit are moved to conflicts too. Nothing is overwritten.
 
 import { get, set } from 'idb-keyval'
 import { requireSupabase } from '../supabase.ts'
-import { applyOp, emptyCollection, type Collection, type Op, type Row, type Table } from './model.ts'
+import { applyOp, conflictOf, emptyCollection, type Collection, type Op, type Row, type Table } from './model.ts'
 
 const TABLES: Table[] = ['boxes', 'groups', 'custom_cards', 'stacks']
 const PAGE = 1000 // Supabase's default maximum rows per request
+const RETRY_MS = 30_000
 
 export interface OpRecord {
   id: number
@@ -18,17 +24,30 @@ export interface OpRecord {
   created_at: string
 }
 
+export interface Conflict {
+  op: Op
+  reason: string
+}
+
 type Listener = () => void
+
+const isNetworkError = (err: unknown) =>
+  err instanceof TypeError || /fetch|network|load failed|offline/i.test(String((err as Error)?.message ?? err))
 
 export class CollectionStore {
   readonly ownerId: string
   readonly readOnly: boolean
+  private base: Collection = emptyCollection()
   private state: Collection = emptyCollection()
+  private queue: Op[] = []
   private listeners = new Set<Listener>()
-  private sending = Promise.resolve()
+  private flushing: Promise<void> | undefined
+  private timer: ReturnType<typeof setInterval> | undefined
   loaded = false
   error: string | undefined
-  pending = 0
+  offline = false
+  conflicts: Conflict[] = []
+  lastSynced: string | undefined
 
   constructor(ownerId: string, readOnly: boolean) {
     this.ownerId = ownerId
@@ -37,6 +56,11 @@ export class CollectionStore {
 
   get collection() {
     return this.state
+  }
+
+  /** Changes made on this device that the server hasn't confirmed yet. */
+  get pending() {
+    return this.queue.length
   }
 
   subscribe = (fn: Listener) => {
@@ -50,23 +74,60 @@ export class CollectionStore {
     for (const fn of this.listeners) fn()
   }
 
-  private cacheKey() {
-    return `collection:${this.ownerId}`
+  private key(what: string) {
+    return `${what}:${this.ownerId}`
   }
 
-  /** Shows the cached copy (if any) immediately, then refreshes from the server. */
+  private async persist() {
+    if (this.readOnly) return
+    await Promise.all([
+      set(this.key('collection'), this.base),
+      set(this.key('queue'), this.queue),
+      set(this.key('synced'), this.lastSynced),
+    ]).catch(() => {})
+  }
+
+  private rebuild() {
+    let s = this.base
+    for (const op of this.queue) s = applyOp(s, op)
+    this.state = s
+  }
+
+  /** Shows the saved copy (and unsent changes) immediately, then syncs with the server. */
   async load() {
     if (!this.readOnly) {
-      const cached = await get<Collection>(this.cacheKey()).catch(() => undefined)
-      if (cached && !this.loaded) {
-        this.state = cached
+      const [base, queue, synced] = await Promise.all([
+        get<Collection>(this.key('collection')).catch(() => undefined),
+        get<Op[]>(this.key('queue')).catch(() => undefined),
+        get<string>(this.key('synced')).catch(() => undefined),
+      ])
+      if (base && !this.loaded) {
+        this.base = base
+        this.queue = queue ?? []
+        this.lastSynced = synced
+        this.rebuild()
         this.loaded = true
         this.emit()
       }
+      if (typeof window !== 'undefined') window.addEventListener('online', this.onOnline)
+      this.timer = setInterval(() => {
+        if (this.queue.length) void this.flush()
+      }, RETRY_MS)
     }
     await this.refresh()
+    if (this.queue.length) await this.flush()
   }
 
+  dispose() {
+    if (typeof window !== 'undefined') window.removeEventListener('online', this.onOnline)
+    clearInterval(this.timer)
+  }
+
+  private onOnline = () => {
+    void this.refresh().then(() => this.flush())
+  }
+
+  /** Reloads from the server and re-applies unsent changes that still fit. */
   async refresh() {
     const sb = requireSupabase()
     const next = emptyCollection()
@@ -87,48 +148,102 @@ export class CollectionStore {
           if (!data || data.length < PAGE) break
         }
       }
-      this.state = next
+      this.base = next
+      this.revalidateQueue()
       this.loaded = true
+      this.offline = false
       this.error = undefined
-      if (!this.readOnly) await set(this.cacheKey(), next).catch(() => {})
+      this.lastSynced = new Date().toISOString()
+      await this.persist()
     } catch (err) {
-      this.error = (err as Error).message
+      if (isNetworkError(err)) this.offline = true
+      else this.error = (err as Error).message
     }
     this.emit()
   }
 
-  /** Applies an op locally and sends it. Resolves once the server has accepted (or rejected) it. */
-  apply(op: Op): Promise<void> {
-    if (this.readOnly) return Promise.reject(new Error('This collection is read-only'))
-    this.state = applyOp(this.state, op)
-    this.pending++
-    this.emit()
-    const send = async () => {
-      try {
-        const { data, error } = await requireSupabase().rpc('apply_ops', { ops: [op] })
-        if (error) throw new Error(error.message)
-        const [result] = data as { status: string; reason?: string }[]
-        if (result.status === 'rejected') {
-          this.error = `That change conflicted with a newer one (${result.reason}). Your collection was reloaded; please redo it.`
-          await this.refresh()
-        } else {
-          await set(this.cacheKey(), this.state).catch(() => {})
-        }
-      } catch (err) {
-        this.error = `Couldn't save a change: ${(err as Error).message}. Reloading your collection.`
-        await this.refresh()
-      } finally {
-        this.pending--
-        this.emit()
+  /** Drops queued changes that no longer apply on top of `base` (moving them to conflicts). */
+  private revalidateQueue() {
+    let s = this.base
+    const keep: Op[] = []
+    for (const op of this.queue) {
+      const reason = conflictOf(s, op)
+      if (reason) this.conflicts.push({ op, reason })
+      else {
+        keep.push(op)
+        s = applyOp(s, op)
       }
     }
-    // One at a time, in order: later ops are built on top of earlier ones.
-    this.sending = this.sending.then(send)
-    return this.sending
+    this.queue = keep
+    this.state = s
+  }
+
+  /** Applies a change on screen at once, saves it in the queue, and sends it. */
+  async apply(op: Op): Promise<void> {
+    if (this.readOnly) throw new Error('This collection is read-only')
+    this.queue.push(op)
+    this.state = applyOp(this.state, op)
+    this.emit()
+    await this.persist()
+    await this.flush()
+  }
+
+  /** Sends queued changes in order. Safe to call any time; concurrent calls share one run. */
+  flush(): Promise<void> {
+    this.flushing ??= this.doFlush().finally(() => {
+      this.flushing = undefined
+    })
+    return this.flushing
+  }
+
+  private async doFlush() {
+    while (this.queue.length) {
+      const batch = this.queue.slice(0, 20)
+      let results: { client_op_id: string; status: string; reason?: string }[]
+      try {
+        const { data, error } = await requireSupabase().rpc('apply_ops', { ops: batch })
+        if (error) throw Object.assign(new Error(error.message), { network: /fetch|network/i.test(error.message) })
+        results = data
+      } catch (err) {
+        if (isNetworkError(err) || (err as { network?: boolean }).network) {
+          this.offline = true
+          this.emit()
+          return // keep everything queued; retried when back online
+        }
+        this.error = `Couldn't save changes: ${(err as Error).message}`
+        this.emit()
+        return
+      }
+      this.offline = false
+      let rejected = false
+      for (const r of results) {
+        const op = this.queue[0]
+        if (!op || op.client_op_id !== r.client_op_id) break
+        this.queue.shift()
+        if (r.status === 'rejected') {
+          this.conflicts.push({ op, reason: r.reason ?? 'changed elsewhere' })
+          rejected = true
+          break
+        }
+        this.base = applyOp(this.base, op)
+      }
+      this.lastSynced = new Date().toISOString()
+      await this.persist()
+      this.emit()
+      if (rejected) {
+        await this.refresh()
+        if (this.error) return
+      }
+    }
   }
 
   dismissError() {
     this.error = undefined
+    this.emit()
+  }
+
+  dismissConflict(i: number) {
+    this.conflicts.splice(i, 1)
     this.emit()
   }
 

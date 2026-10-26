@@ -59,3 +59,12 @@ export const loadPrices = (meta: YgoMeta) => {
   const day = meta.priceDays[0]
   return day ? cached('prices', day, () => fetchJson<YgoPriceDay>(`prices/${day}.json`)) : Promise.resolve(undefined)
 }
+
+/** One specific day's prices (cached like the newest one). */
+export const loadPriceDay = (day: string) => cached('older-prices', day, () => fetchJson<YgoPriceDay>(`prices/${day}.json`))
+
+/** The newest kept day at least `days` before `newest` (price files are daily; a missed day falls back to an older one). */
+export function dayBefore(priceDays: string[], newest: string, days: number): string | undefined {
+  const target = new Date(Date.parse(newest) - days * 86400000).toISOString().slice(0, 10)
+  return priceDays.filter((d) => d <= target).sort().reverse()[0]
+}
