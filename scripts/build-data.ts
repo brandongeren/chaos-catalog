@@ -47,6 +47,7 @@ async function main() {
   for (const [date, day] of prices) await writeJson(path.join(dir, 'prices', `${date}.json`), day)
   // Drop price files older than the 28 kept days.
   const keep = new Set(meta.priceDays.map((d) => `${d}.json`))
+  await mkdir(path.join(dir, 'prices'), { recursive: true }) // first run with no prices yet
   for (const f of await readdir(path.join(dir, 'prices'))) if (!keep.has(f)) await rm(path.join(dir, 'prices', f))
   await writeJson(path.join(dir, 'meta.json'), meta) // last, so a failed run never points at missing files
 
