@@ -19,8 +19,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadProfile = useCallback(async (s: Session | null) => {
     if (!supabase || !s) return setProfile(null)
-    const { data } = await supabase.from('profiles').select('*').eq('id', s.user.id).maybeSingle()
-    setProfile((data as Profile | null) ?? null)
+    // The last profile seen is kept on the device, so the app (and your collection) still opens offline.
+    const key = `profile:${s.user.id}`
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', s.user.id).maybeSingle()
+      if (error) throw new Error(error.message)
+      if (data) localStorage.setItem(key, JSON.stringify(data))
+      setProfile((data as Profile | null) ?? null)
+    } catch {
+      const cached = localStorage.getItem(key)
+      setProfile(cached ? (JSON.parse(cached) as Profile) : null)
+    }
   }, [])
 
   useEffect(() => {
