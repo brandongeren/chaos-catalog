@@ -1,0 +1,331 @@
+# Chaos Catalog: design (draft 1, 2026-10-26)
+
+A chaos-storage collection manager for trading cards, Yu-Gi-Oh first. Cards go wherever there's room; the app remembers
+where. Runs in any browser (phone or computer), installable as an app, free to host.
+
+Name: **Chaos Catalog** (repo `brandongeren/chaos-catalog`). Icon: the artwork of the card "Chaos Greed".
+
+---
+
+## 1. Goals and non-goals
+
+**Goals**
+- Find any card fast: search the full card database or only your collection, and see every location holding a copy.
+- Place, move, split and merge cards between boxes, rows and groups, one at a time or in bulk.
+- Model real play: pull a decklist's cards out of storage into a deck, then later take the deck apart, putting cards
+  back anywhere, from any past change.
+- Import and export decks in every common format; import and export collections as JSON and CSV.
+- Share read-only; only the owner edits. Invite-only accounts, friends, city-based "who has it", borrow and trade.
+- Prices in USD, with a "movers" view over the last 28 days.
+- Add cards by camera, several per photo, with a confirm list.
+- Built so another card game can be added later without rewriting the core.
+
+**Non-goals (decided)**
+- No undo/redo. History is for viewing and for re-adding cards; moving things should simply be easy.
+- No deck legality checks (banlist, Genesys cap). Users build decks elsewhere; a deck is a name plus cards.
+- No price history beyond 28 days.
+- No full-size photos. Everything is stored as a thumbnail.
+- English card data only for now (each copy can still record its language).
+
+---
+
+## 2. Architecture
+
+```
+            GitHub Actions (daily cron)                  Supabase (free)
+   YGOPRODeck API ──► build catalog + prices ──┐       ┌─ Postgres: profiles, boxes, groups, stacks,
+                                               │       │  operations (history), friends, wants, requests
+                                               ▼       │  Row Level Security: owner writes, others read
+   Browser / installed app  ◄── static files on GitHub Pages
+   (React + TypeScript)        catalog.json.gz, prices.json.gz, movers.json.gz
+     ├─ IndexedDB: catalog cache, collection cache, pending operation queue
+     ├─ search runs on the device
+     └─ talks to Supabase for login, collection reads and writes, photos, deck-link fetches
+                                                       └─ Storage: box/group thumbnails
+                                                       └─ Edge Function: fetch Konami/Neuron deck pages
+```
+
+| Piece | Choice | Why |
+|---|---|---|
+| Frontend | React + TypeScript + Vite, installable web app (PWA) | Largest ecosystem; one codebase for phone and desktop |
+| Hosting | GitHub Pages (`<user>.github.io/<repo>`) | Free; deployed by GitHub Actions |
+| Backend | Supabase free tier | Postgres, invite-only auth, Row Level Security, 1 GB storage, Edge Functions |
+| Card data and prices | GitHub Actions daily job, output as static files | No database space or reads used; search works offline |
+| Local storage | IndexedDB (via Dexie) | localStorage holds only ~5 MB |
+| Fuzzy search | MiniSearch or Fuse.js (pick after a speed test on ~14k cards) | Runs on the device |
+| Card detection and OCR | OpenCV.js (find cards) + Tesseract.js (read set codes) | Free, runs on the device |
+
+**Free-tier fit**
+- Collection: 70k cards as stacks, around 30k rows of ~300 bytes ≈ 10 MB. History adds ~300 bytes per change.
+  Supabase's 500 MB database cap is far away.
+- Thumbnails: ~400 px, ~25 KB each; 1 GB ≈ 40,000 photos.
+- Prices: 28 daily files of ~1 MB compressed, kept as static files, not in the database.
+- Supabase pauses a project after 7 days with no activity. The daily GitHub job pings it to keep it awake.
+
+---
+
+## 3. Multi-game design
+
+The core (collections, locations, history, social, sync) knows nothing about Yu-Gi-Oh. Each game is an **adapter**:
+
+| Adapter supplies | Yu-Gi-Oh |
+|---|---|
+| Catalog builder (job) | YGOPRODeck API → compact catalog |
+| Card key | `ygo:<passcode>` (YGOPRODeck id) |
+| Printing key | set code + rarity, e.g. `LOB-EN001/UR` |
+| Search fields, filters, sort options, syntax keywords | type, attribute, ATK, DEF, level, rank, link rating, Genesys points, ... |
+| Deck sections | Main, Extra, Side |
+| Deck formats | ydk, ydke, Omega, YGOPRODeck, Neuron, text |
+| Scan pattern | set-code regex `[A-Z0-9]{2,5}-[A-Z]{2}\d{3}` |
+| Price source | YGOPRODeck per-printing price |
+
+Every collection row stores `game` plus the card key, so a second game is a new adapter and catalog file, not a schema
+change.
+
+---
+
+## 4. Data model (Supabase / Postgres)
+
+Every user-owned table has `owner_id`. Row Level Security: the **owner** can read and write; anyone else can read only
+what the owner's profile allows (section 9).
+
+### Accounts and social
+- **profiles**: `user_id`, `username`, `display_name`, `city` (city only, no address), visibility settings
+  (`profile_public`, `show_locations`, `show_prices`), default `group_ordered`.
+- **invites**: `code`, `created_by`, `used_by`, `expires_at`. Only the admin (you) creates invite links.
+- **friendships**: `user_a`, `user_b`, `status` (pending / accepted).
+
+### Locations
+- **boxes**: `id`, `name`, `photo_path?`, `notes?`, `sort_order`.
+- **groups**: `id`, `box_id?` (null = stands alone, e.g. a binder or deck box), `row_label?` (a plain label inside the
+  box), `name`, `kind`, `ordered` (defaults from the profile setting), `photo_path?`, `sort_order`.
+  - `kind = storage`: an ordinary group.
+  - `kind = deck`: a deck. Its stacks carry a section (main / extra / side).
+  - `kind = holding`: a "purgatory" in-between area. Each user starts with one and can add and name more.
+  - `kind = lent`: system area for cards lent out (one per user).
+
+### Cards
+- **stacks**: identical copies in one place, with a quantity.
+  - `id`, `group_id`, `game`, `card_key` or `custom_card_id`, `qty`
+  - optional details: `set_code?`, `rarity?`, `edition?` (1st / Unlimited / Limited), `language` (default `en`),
+    `condition?` (NM / LP / MP / HP / Damaged)
+  - `section?` (deck groups only), `position?` (ordered groups only)
+  - `availability`: none / borrow / trade
+  - loans: `lent_to_user?`, `lent_to_name?` (for non-users), `lent_due?`, `lent_from_group?`
+  - **Merge rule:** two stacks merge only when every detail field matches exactly (unknown stays separate from
+    known). Splitting takes N copies off into a new stack with the same details.
+  - Details stay with the copy wherever it moves.
+- **custom_cards**: blank cards the user fills in (proxy, token, another game's card, ...): `id`, `name`, free-form
+  `fields` (JSON), `notes`.
+- **wants**: standing wants list: `game`, `card_key`, `qty`, optional preferred details.
+
+### History and sync
+- **operations**: the single source of history **and** the offline queue.
+  - `id`, `client_op_id` (UUID made on the device, so a retry is never applied twice), `batch_id`, `device`,
+    `created_at`, `type`, `payload`, `status` (applied / rejected), `reject_reason?`
+  - types: `add`, `remove`, `move`, `split`, `merge`, `edit_details`, `lend`, `return`, box/group create, rename and
+    delete, `bulk` (a list of the above that succeeds or fails as a whole).
+  - Each op is applied by one Postgres function (RPC) that checks ownership and preconditions (e.g. "Group 3 still has
+    ≥1 Ash Blossom with these details") inside a transaction.
+- **requests**: borrow and trade requests between users: `from_user`, `to_user`, `stack_id`, `type`, `qty`,
+  `message`, `status`.
+
+---
+
+## 5. Search
+
+Runs on the device over the cached catalog, with a toggle for **all cards** vs **my collection** (and "include OCG-only
+cards", off by default).
+
+- **Basic bar:** name search with a **fuzzy** toggle.
+- **Advanced panel** (collapsed by default, so the filters don't crowd the page): card type and subtype, attribute,
+  monster type, level, rank, link rating and arrows, pendulum scale, ATK and DEF ranges, Genesys points, TCG release
+  date range, archetype, set, card text, TCG banlist status, related cards; in collection mode also rarity, condition,
+  edition, language, availability, location.
+- **Related cards:** cards sharing YGOPRODeck's `archetype` field, plus **mentions in both directions** (cards whose text names this card, and cards
+  this card's text names). The daily job builds the mentions index from quoted names in card text.
+- **Sort:** TCG release date, name, ATK, DEF, level/rank, Genesys points, price, quantity owned.
+- **Syntax mode** (Scryfall-style), with a guide page. Draft keywords: `t:effect a:dark atk>=2500 lv:4 r:4 link:3
+  arch:"blue-eyes" o:"draw" gp>0 set:LOB rar:ur cond:nm in:box:"Box 3" avail:trade mentions:"Dark Magician"`.
+  No Yu-Gi-Oh parser like this seems to exist, so we write our own, borrowing ideas from open-source Magic tools.
+- **Results:** each card lists every location holding it (box → row → group, quantity, details), with inline
+  **Add**, **Move** and **Split** actions.
+
+---
+
+## 6. Collection management
+
+- Browse boxes → rows → groups with thumbnails; a Notion-like layout (sidebar tree, clean lists).
+- Create, rename and delete boxes and groups; set `ordered` per group; drag to reorder in ordered groups.
+- **Bulk actions:** multi-select stacks or whole groups → move to a group, move groups to another box, send to a holding
+  area, mark availability, edit details, remove.
+- **History view:** a timeline of operations, filterable by date, card, group and batch. You can **select some cards from
+  any past change** (even ones removed days ago) and add them to any group: this is how you take a deck apart and file
+  the cards away.
+- **Placement suggestions** (later): suggest a group with free space for new cards (needs optional group capacity).
+
+---
+
+## 7. Decks
+
+- A deck is a group with `kind = deck`: a name plus Main, Extra and Side sections. No legality checks.
+- **Import** (paste, file or link): `.ydk`, `ydke://`, YGO Omega code, YGOPRODeck deck link, Konami database /
+  Neuron link (`neuron.konami.net/link/...` redirects to a `db.yugioh-card.com` deck page; card ids map through
+  YGOPRODeck's `konami_id`), plain text (`3 Ash Blossom & Joyous Spring`).
+  Konami and YGOPRODeck deck pages are fetched by a Supabase Edge Function, since the browser can't read them directly.
+  It only accepts those hosts. (`.xml` decks skipped for now, 2026-10-26.)
+- **Pull list** for an imported deck: for each card, the locations to take it from. User-set preferences (fewest
+  stops, lowest value first, worst condition first, prefer a box); with no preferences set, list every location.
+  "Pull" moves the chosen copies into the deck group as one batch.
+- **Missing cards:** shows what you lack, then **who has it**: friends, and users in the same city, with
+  borrow/trade availability. One tap builds an **LF list**, copied to the clipboard:
+  ```
+  LF:
+  3x Ash Blossom & Joyous Spring
+  1x Called by the Grave
+  ```
+  The LF list can also come from the wants list.
+- **Export** any deck as `.ydk`, `ydke://` or text.
+
+---
+
+## 8. Import and export of collections
+
+- **JSON:** full fidelity (boxes, groups, stacks, details, custom cards, wants). Import works as a restore or a merge.
+- **CSV:** one row per stack (card name, card key, set code, rarity, edition, language, condition, qty, box, row,
+  group, availability). Import maps columns and shows a preview before applying.
+
+---
+
+## 9. Users, sharing and permissions
+
+- **Invite-only sign-up:** you create invite links; each link is single-use and expires.
+- **Public read-only:** anyone with the link can view a public profile and collection; nobody but the owner can change
+  it. This is enforced by Row Level Security in the database, not just hidden in the interface.
+- **Profile privacy:** public or private profile; hide locations; hide prices.
+- **Friends:** request and accept.
+- **"Who has it":** checks friends **and** users with the same city, even if they're not friends, but only cards they
+  marked available, and only if their profile allows it.
+- **Borrow and trade:**
+  - Marking: none / available to borrow / available to trade, per stack.
+  - In-app request flow between users (request → accept/decline → the lend or transfer is recorded on both sides).
+  - Lending to someone who isn't a user: record a name and optional due date; the cards move to the "Lent out" area and
+    return to their old group (or one you pick).
+- **Trade matching:** your wants vs. other users' trade-available cards, and the reverse, for friends and locals.
+
+---
+
+## 10. Prices
+
+- Source: TCGplayer market prices (USD) per printing and edition, via TCGCSV (§16). A card's own price is its cheapest
+  printing, falling back to YGOPRODeck's lowest TCGplayer price.
+- The daily job saves today's snapshot and keeps the **last 28 days**, removing the oldest each day.
+- **Movers page:** your cards ranked by change vs 7, 14, 21 or 28 days ago, with a **$ / %** toggle.
+- Collection value totals per box, group and deck (hidden for viewers if the owner turned prices off).
+
+---
+
+## 11. Offline and sync
+
+- Every change is an **operation**. The app writes it to the IndexedDB queue, updates the screen, and sends it to the
+  server right away.
+- With no connection, operations wait in the queue; a banner says "N changes not synced". On reconnect they are sent in
+  order.
+- If the server rejects one (e.g. the card was moved on another device meanwhile), a **conflict screen** shows it with
+  options: apply to a different stack, skip, or edit.
+- The full collection is cached locally for fast loads and read-only offline use.
+- **iOS caveat:** Safari may delete site data after ~7 days of not using the site unless the app is installed to the
+  home screen. The app will suggest installing it.
+- Built online-first in the early phases; the queue and conflict screen come in a later phase. Using operations from
+  day one keeps that step small.
+
+---
+
+## 12. Camera scanning
+
+1. Take or upload a photo of several cards laid out flat.
+2. OpenCV.js finds the card rectangles and straightens each one.
+3. Tesseract.js reads the set code area; the set code is matched against the catalog's printings. That identifies the
+   card, set and language; rarity can be picked from that printing's rarities.
+4. **Confirm list:** one row per detected card, each with a ticked checkbox (approved). Untick a row to enter that card
+   by hand instead. Pick a target group, then add.
+
+Paid recognition services were checked and ruled out: Delver Lens has no API; Nyckel's Yu-Gi-Oh model only returns a
+card category (100 free calls a month, then paid). Risk: foils, glare and small text. Test on real photos early.
+
+---
+
+## 13. Look and feel
+
+- Follows the device's light/dark setting.
+- Search: Scryfall-clean, with YGOPRODeck/Neuron-level filtering behind "Advanced".
+- Deck and collection views: Moxfield-like, adapted to Yu-Gi-Oh (Main/Extra/Side).
+- Management screens: Notion-like.
+- Card artwork: optional later phase. YGOPRODeck forbids loading its images directly, so they'd have to be downloaded
+  once and hosted ourselves (measured: ≈380 MB for every card's small image).
+
+---
+
+## 14. Build phases
+
+| Phase | Delivers |
+|---|---|
+| 0. Setup | Repo, GitHub Pages deploy, Supabase project, daily catalog job |
+| 1. Search | Catalog search for everyone (no login): fuzzy, filters, sorts, related cards |
+| 2. Collection core | Login, boxes/rows/groups, add/move/split/merge, details, operations log, history view, public read-only |
+| 3. Bulk and decks | Multi-select bulk actions, holding areas, deck groups, re-add from history |
+| 4. Deck formats | Import (all formats incl. Neuron), pull list, missing cards, LF list, export |
+| 5. Collection files | JSON and CSV import/export |
+| 6. Social | Invites, profiles, city, privacy, friends, availability, who-has-it, requests, lending, wants, trade matching |
+| 7. Prices | Daily price files, values, movers page |
+| 8. Offline | Operation queue, conflict screen |
+| 9. Scanning | Camera, card detection, OCR, confirm list |
+| 10. Extras | Syntax search mode and guide, placement suggestions, card artwork |
+
+Syntax search could move earlier (after phase 1) if you want it sooner.
+
+---
+
+## 15. Verified facts (2026-10-26)
+
+- **Catalog:** 14,645 cards, 44,613 printings, DB version 147.60. `cardinfo.php?format=genesys&misc=yes` returns
+  **every** card (same 14,645) with `misc_info.genesys_points` (750 nonzero), so one request a day covers cards, sets,
+  prices and Genesys points. 509 cards have no TCG date (OCG-only); 236 have no `konami_id`.
+- **Sizes:** search catalog (name, text, stats, archetype) ≈ 8.1 MB raw / **1.3 MB gzipped**; per-printing price map
+  ≈ 1.0 MB raw / **0.22 MB gzipped** per day, so 28 days ≈ 6 MB.
+- **Card artwork:** small images measured at ~25–29 KB each, so **≈ 380 MB** for every card. Fits on GitHub Pages
+  (1 GB site limit) or Cloudflare R2 (10 GB free).
+- **Mentions index:** quoted names in card text resolve to 3,418 links across 2,562 cards (e.g. 62 cards mention "Dark
+  Magician"). The quoted strings that don't match a card are mostly archetype names (e.g. "Dragonmaid"), which can link
+  to the archetype instead, plus some parsing noise to filter out.
+- **Printing keys:** `<passcode>|<set code>|<rarity name>`. YGOPRODeck lists a few set codes on two different cards
+  (e.g. BLCR-EN015 on two Crystal Beasts), and some rarities have no rarity code, so neither set code alone nor
+  set code + rarity code is unique. Set names contain HTML entities (`&apos;`), decoded by the builder.
+- **Deck formats:**
+  - `ydke://`: three base64 sections separated by `!` (main, extra, side), each an array of little-endian uint32
+    passcodes. Decoded the reference example correctly. (`ydke.js` from Project Ignis is LGPL; we'll write our own
+    ~20-line version.)
+  - **YGO Omega code:** base64 → raw deflate → byte 0 = main+extra count, byte 1 = side count, then little-endian uint32
+    passcodes (main and extra together, then side; split main and extra by card type). Checked against **79 of 79** codes
+    with matching `.ydk` files from a public Omega deck backup (`K1TT5UN3/YGO-Deck-Backup`). Omega also exports `.ydk`
+    (`#Created by YGO Omega`, plus a `#tags=` line).
+  - **YGOPRODeck deck links** (`ygoprodeck.com/deck/<slug>-<number>`): the page contains `maindeckjs`, `extradeckjs`
+    and `sidedeckjs` JSON arrays of passcodes. The `getDecks.php` API ignores deck-id filters, so we read the page
+    (through the Edge Function).
+  - **Konami / Neuron links:** `neuron.konami.net/link/<code>` redirects (302) to a `db.yugioh-card.com` deck page. Each
+    card row carries a hidden `cid` input, the name and a `cards_num_set` count, inside `detailtext_main`,
+    `detailtext_ext` and `detailtext_side` sections. A prototype parser got 42/15/15 and 40/15/15 on the two sample
+    decks, and **every** cid matched YGOPRODeck's `konami_id`.
+
+## 16. Still open
+
+- OCR accuracy on real photos (foils, lighting, several cards per photo). **Tabled** until phase 9; needs sample photos.
+- **Prices (decided 2026-10-26): TCGCSV**, a free daily mirror of TCGplayer (YuGiOh = category 2, 659 sets). Market
+  price per printing **and edition** (1st / Unlimited / Limited). YGOPRODeck's `set_price` was zero for 72% of printings
+  and stale elsewhere (DUDE-EN003 Ash Blossom $31.50 there vs $4.24 market on TCGplayer). YuGiOhPrices.com is gone (its
+  domain has no address records and parked nameservers). Products are matched to cards by set code + rarity, then set
+  code alone, then unique name: 99% matched in a 40-set test (4,771 exact, 564 by set code, 119 by name; the 41 left are
+  promo tokens, which users can add as custom cards). 667 TCGplayer-only printings (e.g. Prismatic Collector's Rare)
+  are added to the catalog. TCGCSV's daily archive is offline, so a full run is ~660 price requests plus product lists
+  for changed sets, about 3 minutes at TCGCSV's suggested pace.
+- Search speed on a phone with ~14.6k cards and fuzzy matching on (test in phase 1).
