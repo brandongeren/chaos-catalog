@@ -4,11 +4,15 @@ import { photoUrl } from '../../core/supabase.ts'
 import { useUrlParams } from '../../lib/useUrlParams.ts'
 import { summary } from '../../games/ygo/classify.ts'
 import { Modal } from '../Modal.tsx'
+import { toYdk, toYdke, type RawDeck } from '../../games/ygo/decks.ts'
+import { download } from '../../lib/download.ts'
 import { cardOf, change, nameOfStack, useCollection, useCollectionContext } from './context.ts'
 import {
   BoxDialog,
   CustomCardDialog,
   EditStackDialog,
+  GiveBackDialog,
+  LendDialog,
   GroupDialog,
   GroupSelect,
   MoveDialog,
@@ -20,7 +24,7 @@ import { languageName } from './labels.ts'
 type Dialog =
   | { kind: 'box'; box?: Box }
   | { kind: 'group'; group?: Group; groupKind?: Group['kind']; boxId?: string | null }
-  | { kind: 'move' | 'edit' | 'remove' | 'split'; stack: Stack }
+  | { kind: 'move' | 'edit' | 'remove' | 'split' | 'lend' | 'giveback'; stack: Stack }
   | { kind: 'custom' }
   | { kind: 'bulk-move'; stacks: Stack[] }
   | { kind: 'move-groups'; groups: Group[] }
@@ -95,6 +99,9 @@ export function CollectionPage() {
             <button type="button" className="chip" onClick={() => setDialog({ kind: 'custom' })}>
               + Custom card
             </button>
+            <button type="button" className="chip" onClick={() => setParams(new URLSearchParams({ view: 'data' }))}>
+              Import / export
+            </button>
           </div>
         )}
         {tree.boxes.map(({ box, groups }) => (
@@ -163,6 +170,8 @@ export function CollectionPage() {
       {dialog?.kind === 'edit' && <EditStackDialog stack={dialog.stack} onClose={() => setDialog(undefined)} />}
       {dialog?.kind === 'remove' && <RemoveDialog stack={dialog.stack} onClose={() => setDialog(undefined)} />}
       {dialog?.kind === 'split' && <SplitDialog stack={dialog.stack} onClose={() => setDialog(undefined)} />}
+      {dialog?.kind === 'lend' && <LendDialog stack={dialog.stack} onClose={() => setDialog(undefined)} />}
+      {dialog?.kind === 'giveback' && <GiveBackDialog stack={dialog.stack} onClose={() => setDialog(undefined)} />}
       {dialog?.kind === 'bulk-move' && <BulkMoveDialog stacks={dialog.stacks} onClose={() => setDialog(undefined)} />}
       {dialog?.kind === 'move-groups' && <MoveGroupsDialog groups={dialog.groups} onClose={() => setDialog(undefined)} />}
     </div>
@@ -226,6 +235,13 @@ function BoxView({ box, onDialog, onOpenGroup }: { box: Box; onDialog: (d: Dialo
   )
 }
 
+/** A deck group as a decklist (custom cards can't be exported). */
+function rawDeckOf(stacks: Stack[]): RawDeck {
+  const deck: RawDeck = { main: [], extra: [], side: [] }
+  for (const s of stacks) if (s.card_key) for (let i = 0; i < s.qty; i++) deck[s.section ?? 'main'].push(Number(s.card_key))
+  return deck
+}
+
 function detailText(s: Stack) {
   return [s.set_code, s.rarity, s.edition, s.condition, s.language !== 'en' ? languageName(s.language) : null].filter(Boolean).join(' · ')
 }
@@ -281,6 +297,16 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
             <button type="button" className="chip" onClick={() => onDialog({ kind: 'group', group })}>
               Edit
             </button>
+            {group.kind === 'deck' && stacks.length > 0 && (
+              <>
+                <button type="button" className="chip" onClick={() => download(`${group.name.replace(/[^\w -]+/g, '') || 'deck'}.ydk`, toYdk(rawDeckOf(stacks)))}>
+                  .ydk
+                </button>
+                <button type="button" className="chip" onClick={() => navigator.clipboard.writeText(toYdke(rawDeckOf(stacks)))}>
+                  Copy ydke://
+                </button>
+              </>
+            )}
           </div>
         )}
       </header>
@@ -349,7 +375,7 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
                           {nameOfStack(ctx.searcher, c, s)}
                         </button>
                         {s.availability !== 'none' && <span className="badge gp">for {s.availability}</span>}
-                        {s.lent_to_name && <span className="badge">lent to {s.lent_to_name}</span>}
+                        {s.lent_to_name && <span className="badge">lent to {s.lent_to_name}{s.lent_due ? `, due ${s.lent_due}` : ''}</span>}
                         <span className="meta">{detailText(s) || (card ? summary(card) : 'custom card')}</span>
                       </span>
                       {!ctx.readOnly && (
@@ -363,6 +389,15 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
                                 ↓
                               </button>
                             </>
+                          )}
+                          {group.kind === 'lent' ? (
+                            <button type="button" className="link" onClick={() => onDialog({ kind: 'giveback', stack: s })}>
+                              Given back
+                            </button>
+                          ) : (
+                            <button type="button" className="link" onClick={() => onDialog({ kind: 'lend', stack: s })}>
+                              Lend
+                            </button>
                           )}
                           <button type="button" className="link" onClick={() => onDialog({ kind: 'move', stack: s })}>
                             Move

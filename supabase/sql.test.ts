@@ -175,3 +175,70 @@ describe('apply_ops', () => {
     expect(ops).toBe(0)
   })
 })
+
+describe('social', () => {
+  const CAROL = '00000000-0000-0000-0000-00000000000c' // same city as Bob, not a friend
+  const DAVE = '00000000-0000-0000-0000-00000000000d' // stranger elsewhere
+  const addCards = async (uid: string, cards: { key: string; qty: number; availability: 'none' | 'borrow' | 'trade' }[]) => {
+    const c = await loadCollection(uid)
+    const d = new Draft(c, () => 'card')
+    const g = d.createGroup('Binder')
+    for (const x of cards) d.add({ card_key: x.key, qty: x.qty, availability: x.availability }, g.id)
+    expect((await applyOps(uid, [d.finish('add', 'add')]))[0].status).toBe('applied')
+  }
+  const rpc = <T,>(uid: string, sql: string, args: unknown[] = []) => as(uid, async () => (await db.query<T>(sql, args)).rows)
+
+  beforeAll(async () => {
+    await db.exec(`insert into public.invites (code) values ('carol-code'), ('dave-code');`)
+    await signUp(CAROL, { invite_code: 'carol-code', username: 'carol' })
+    await signUp(DAVE, { invite_code: 'dave-code', username: 'dave' })
+    await db.exec(`update public.profiles set city = 'Seattle, WA' where username in ('bob', 'carol');
+                   update public.profiles set city = 'Boise' where username = 'dave';`)
+    await addCards(ALICE, [{ key: '999', qty: 1, availability: 'none' }])
+    await addCards(CAROL, [{ key: '777', qty: 2, availability: 'trade' }, { key: '888', qty: 1, availability: 'none' }])
+    await addCards(DAVE, [{ key: '777', qty: 3, availability: 'trade' }])
+  })
+
+  it('friend requests: ask, accept, list', async () => {
+    expect((await rpc<{ r: string }>(BOB, `select public.request_friend('alice') as r`))[0].r).toBe('requested')
+    expect(await rpc(ALICE, 'select username, status, incoming from public.my_friends()')).toEqual([{ username: 'bob', status: 'pending', incoming: true }])
+    expect((await rpc<{ r: string }>(ALICE, `select public.request_friend('bob') as r`))[0].r).toBe('accepted')
+    await expect(rpc(BOB, `select public.request_friend('nobody')`)).rejects.toThrow(/No user/)
+  })
+
+  it('who has it: friends (all copies, even private) and same-city public profiles (available copies only)', async () => {
+    // Alice is private now (earlier test) but Bob is her friend; Dave is in another city.
+    const rows = await rpc<{ username: string; card_key: string; qty: number; availability: string; is_friend: boolean }>(
+      BOB,
+      `select username, card_key, qty::int as qty, availability, is_friend from public.who_has(array['999', '777', '888'])`,
+    )
+    expect(rows).toEqual([
+      { username: 'alice', card_key: '999', qty: 1, availability: 'none', is_friend: true },
+      { username: 'carol', card_key: '777', qty: 2, availability: 'trade', is_friend: false },
+    ])
+    // Bob can read his friend Alice's private collection directly too; Dave can't.
+    expect((await rpc(BOB, `select id from public.stacks where owner_id = '${ALICE}'`)).length).toBeGreaterThan(0)
+    expect((await rpc(DAVE, `select id from public.stacks where owner_id = '${ALICE}'`)).length).toBe(0)
+  })
+
+  it('wants and trade matches', async () => {
+    await rpc(BOB, `insert into public.wants (card_key, qty) values ('777', 2)`)
+    await expect(rpc(BOB, `insert into public.wants (owner_id, card_key) values ('${CAROL}', '1')`)).rejects.toThrow()
+    expect(await rpc(BOB, `select direction, username, card_key, qty::int as qty from public.trade_matches()`)).toEqual([
+      { direction: 'they_have', username: 'carol', card_key: '777', qty: 2 },
+    ])
+    expect(await rpc(CAROL, `select direction, username, card_key from public.trade_matches()`)).toEqual([
+      { direction: 'they_want', username: 'bob', card_key: '777' },
+    ])
+  })
+
+  it('requests: only to friends or locals; only the right side can answer', async () => {
+    await rpc(BOB, `insert into public.requests (to_user, kind, card_key) values ('${CAROL}', 'trade', '777')`)
+    await expect(rpc(BOB, `insert into public.requests (to_user, kind, card_key) values ('${DAVE}', 'trade', '777')`)).rejects.toThrow()
+    const [{ id }] = await rpc<{ id: string }>(CAROL, `select id from public.requests`)
+    await expect(rpc(BOB, `select public.answer_request('${id}', 'accepted')`)).rejects.toThrow(/owner/)
+    await rpc(CAROL, `select public.answer_request('${id}', 'accepted', 'sure, Saturday?')`)
+    expect(await rpc(BOB, `select status, reply from public.requests`)).toEqual([{ status: 'accepted', reply: 'sure, Saturday?' }])
+    expect(await rpc(DAVE, `select id from public.requests`)).toEqual([])
+  })
+})

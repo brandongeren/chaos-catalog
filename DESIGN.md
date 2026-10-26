@@ -233,6 +233,23 @@ cards", off by default).
 
 ---
 
+### Social rules (built 2026-10-26, `0003_social.sql`)
+- Friends can read each other's collections even when a profile is private.
+- **Who has it** / **trade matches**: friends (all copies, availability shown) and same-city users with a public
+  profile (only copies marked borrow/trade). Lent-out copies never count. City match is case-insensitive.
+- Requests go only to friends or locals; the recipient accepts/declines/marks done, the sender cancels. Accepting
+  doesn't move cards: the owner records the hand-over with Lend (loan) or Remove (trade).
+- Wants are a plain owner-writable table (no versions needed); visible like the collection.
+
+### Decks and files (built 2026-10-26)
+- Deck import detects the format from what's pasted. Links (YGOPRODeck, Neuron/Konami) go through the `fetch-deck`
+  Edge Function, which only fetches those hosts (redirects included), max 2 MB; the app parses the HTML. Verified on
+  the two sample Neuron decks (42/15/15, 40/15/15) and a YGOPRODeck deck (45/15/15), all cards matched.
+- Pull strategies: list only (default), fewest stops, cheapest first, most played (worst condition) first, prefer a
+  box. Copies already in the target deck count; lent-out copies are skipped; the same copy is never used twice.
+- Collection JSON is a full backup; imports always create new ids and go in chunks of 400 stacks per op. CSV is one
+  row per stack; boxes/groups are matched by name or created; custom cards aren't re-imported from CSV.
+
 ## 10. Prices
 
 - Source: TCGplayer market prices (USD) per printing and edition, via TCGCSV (§16). A card's own price is its cheapest
@@ -292,9 +309,9 @@ card category (100 free calls a month, then paid). Risk: foils, glare and small 
 | 1. Search | Catalog search for everyone (no login): fuzzy, filters, sorts, related cards | done 2026-10-26 |
 | 2. Collection core | Login, boxes/rows/groups, add/move/split/merge, details, operations log, history view, public read-only | built 2026-10-26; needs the migrations applied |
 | 3. Bulk and decks | Multi-select bulk actions, holding areas, deck groups, re-add from history | built 2026-10-26 |
-| 4. Deck formats | Import (all formats incl. Neuron), pull list, missing cards, LF list, export |  |
-| 5. Collection files | JSON and CSV import/export |  |
-| 6. Social | Invites, profiles, city, privacy, friends, availability, who-has-it, requests, lending, wants, trade matching |  |
+| 4. Deck formats | Import (all formats incl. Neuron), pull list, missing cards, LF list, export | built 2026-10-26; links need the fetch-deck function deployed |
+| 5. Collection files | JSON and CSV import/export | built 2026-10-26 |
+| 6. Social | Invites, profiles, city, privacy, friends, availability, who-has-it, requests, lending, wants, trade matching | built 2026-10-26; needs migration 0003 |
 | 7. Prices | Daily price files, values, movers page |  |
 | 8. Offline | Operation queue, conflict screen |  |
 | 9. Scanning | Camera, card detection, OCR, confirm list |  |

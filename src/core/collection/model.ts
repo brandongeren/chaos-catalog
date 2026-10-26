@@ -164,6 +164,8 @@ export interface AddInput {
   details?: Partial<Details>
   section?: Section | null
   availability?: Availability
+  /** Imported loans: who has the copies (no account link). */
+  loan?: { lent_to_name: string; lent_due: string | null; lent_from_group: string | null }
 }
 
 export class Draft {
@@ -353,9 +355,9 @@ export class Draft {
       section: g.kind === 'deck' ? (input.section ?? 'main') : null,
       availability: input.availability ?? 'none',
       lent_to_user: null,
-      lent_to_name: null,
-      lent_due: null,
-      lent_from_group: null,
+      lent_to_name: input.loan?.lent_to_name ?? null,
+      lent_due: input.loan?.lent_due ?? null,
+      lent_from_group: input.loan?.lent_from_group ?? null,
     }
     const s = this.place(proto, input.qty, groupId)
     this.line(s, input.qty, null, groupId)
@@ -421,6 +423,47 @@ export class Draft {
       throw new CollectionError('Only identical copies in the same group can be merged')
     this.set('stacks', { ...a, qty: a.qty + b.qty })
     this.drop('stacks', b.id)
+  }
+
+  /**
+   * Lends `qty` copies: they move to the "Lent out" area (created if needed) with who has them and when they're due,
+   * remembering where they came from.
+   */
+  lend(stackId: string, qty: number, to: { user?: string | null; name: string; due?: string | null }): Stack {
+    if (!to.name.trim()) throw new CollectionError('Who are you lending them to?')
+    const s = this.take(stackId, qty)
+    const lentArea =
+      [...this.work.groups.values()].find((g) => g.kind === 'lent') ?? this.createGroup('Lent out', { kind: 'lent' })
+    const lent = this.place(
+      {
+        ...s,
+        section: null,
+        lent_to_user: to.user ?? null,
+        lent_to_name: to.name.trim(),
+        lent_due: to.due || null,
+        lent_from_group: s.group_id,
+      },
+      qty,
+      lentArea.id,
+    )
+    this.line(s, qty, s.group_id, lentArea.id)
+    return lent
+  }
+
+  /** Brings lent copies back: to where they came from, or another group. */
+  giveBack(stackId: string, qty: number, toGroupId?: string): Stack {
+    const s = this.stack(stackId)
+    const target = toGroupId ?? (s.lent_from_group && this.work.groups.has(s.lent_from_group) ? s.lent_from_group : undefined)
+    if (!target) throw new CollectionError('Choose where to put them back')
+    this.take(stackId, qty)
+    const g = this.group(target)
+    const back = this.place(
+      { ...s, lent_to_user: null, lent_to_name: null, lent_due: null, lent_from_group: null, section: g.kind === 'deck' ? 'main' : null },
+      qty,
+      target,
+    )
+    this.line(s, qty, s.group_id, target)
+    return back
   }
 
   /** Sets a stack's place in an ordered group. */

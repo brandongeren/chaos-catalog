@@ -19,11 +19,13 @@ interface Props {
   locationOf?: (groupId: string) => string
   onAdd?: () => void
   addDialog?: ReactNode
+  /** Signed in: show "Want" and who among friends/locals has it. */
+  social?: ReactNode
 }
 
 const EDITIONS = ['1st Edition', 'Unlimited', 'Limited']
 
-export function CardDetail({ card, searcher, prices, onOpen, onShowRelated, onArchetype, onBack, owned, locationOf, onAdd, addDialog }: Props) {
+export function CardDetail({ card, searcher, prices, onOpen, onShowRelated, onArchetype, onBack, owned, locationOf, onAdd, addDialog, social }: Props) {
   const list = (ids: number[] | undefined) => (ids ?? []).map((id) => searcher.byId.get(id)).filter((c): c is YgoCard => !!c)
   const mentions = list(card.m)
   const mentionedBy = list(card.mb)
@@ -78,6 +80,7 @@ export function CardDetail({ card, searcher, prices, onOpen, onShowRelated, onAr
         </section>
       )}
       {addDialog}
+      {social}
 
       <dl className="facts">
         <dt>TCG release</dt>

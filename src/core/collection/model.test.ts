@@ -109,6 +109,22 @@ describe('Draft', () => {
     expect(stacksIn(c, ordered.id).map((x) => x.qty).sort()).toEqual([1, 3])
   })
 
+  it('lend moves copies to Lent out with the borrower; give back returns them', () => {
+    let { c, a } = setup()
+    let d = new Draft(c, nameOf)
+    const s = d.add({ card_key: '14558127', qty: 3 }, a.id)
+    c = applyOp(c, d.finish('add', 'add'))
+    d = new Draft(c, nameOf)
+    const lent = d.lend(s.id, 2, { name: 'Dawson', due: '2026-11-30' })
+    c = applyOp(c, d.finish('lend', 'lend'))
+    const area = [...c.groups.values()].find((g) => g.kind === 'lent')!
+    expect(c.stacks.get(lent.id)).toMatchObject({ group_id: area.id, qty: 2, lent_to_name: 'Dawson', lent_due: '2026-11-30', lent_from_group: a.id })
+    d = new Draft(c, nameOf)
+    d.giveBack(lent.id, 2)
+    c = applyOp(c, d.finish('return', 'return'))
+    expect(stacksIn(c, a.id).map((x) => [x.qty, x.lent_to_name])).toEqual([[3, null]])
+  })
+
   it('refuses impossible edits', () => {
     const { c, a, box } = setup()
     const d = new Draft(c, nameOf)

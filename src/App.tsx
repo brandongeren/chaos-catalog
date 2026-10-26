@@ -12,6 +12,9 @@ import { AccountPage } from './ui/AccountPage.tsx'
 import { CollectionPage } from './ui/collection/CollectionPage.tsx'
 import { CollectionContext, type CollectionContextValue } from './ui/collection/context.ts'
 import { HistoryPage } from './ui/collection/HistoryPage.tsx'
+import { DataPage } from './ui/collection/DataPage.tsx'
+import { DecksPage } from './games/ygo/ui/DecksPage.tsx'
+import { FriendsPage } from './ui/social/FriendsPage.tsx'
 
 type State =
   | { status: 'loading' }
@@ -98,6 +101,8 @@ function Shell() {
         <nav className="tabs">
           {tab('search', 'Search')}
           {profile && tab('collection', 'Collection')}
+          {tab('decks', 'Decks')}
+          {profile && tab('friends', 'Friends')}
           {profile && tab('history', 'History')}
           {tab('account', session ? 'Account' : 'Sign in')}
         </nav>
@@ -136,6 +141,9 @@ function Shell() {
             {view === 'search' && <SearchPage searcher={searcher} prices={prices} />}
             {(view === 'collection' || view === 'user') && (ctx ? <CollectionPage /> : <SignInHint />)}
             {view === 'history' && (ctx ? <HistoryPage /> : <SignInHint />)}
+            {view === 'decks' && <DecksPage searcher={searcher} prices={prices} />}
+            {view === 'friends' && <FriendsPage searcher={searcher} tab={params.get('tab') ?? undefined} />}
+            {view === 'data' && (ctx ? <DataPage /> : <SignInHint />)}
             {view === 'account' && <AccountPage inviteCode={params.get('invite') ?? undefined} />}
           </CollectionContext.Provider>
         )}

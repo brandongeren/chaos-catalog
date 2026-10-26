@@ -1,4 +1,5 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { myFriends } from '../../core/social.ts'
 import {
   CONDITIONS,
   EDITIONS,
@@ -583,6 +584,73 @@ export function CustomCardDialog({ onClose }: { onClose: () => void }) {
           <input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} />
         </label>
         <Actions busy={busy} label="Add" error={error} />
+      </form>
+    </Modal>
+  )
+}
+
+export function LendDialog({ stack, onClose }: { stack: Stack; onClose: () => void }) {
+  const ctx = useCollectionContext()
+  const c = useCollection(ctx.store)
+  const [qty, setQty] = useState(stack.qty)
+  const [friends, setFriends] = useState<{ id: string; username: string }[]>([])
+  const [who, setWho] = useState('')
+  const [due, setDue] = useState('')
+  const { busy, error, submit } = useSubmit(onClose)
+  const name = nameOfStack(ctx.searcher, c, stack)
+  useEffect(() => {
+    myFriends().then((f) => setFriends(f.filter((x) => x.status === 'accepted')), () => {})
+  }, [])
+  const friend = friends.find((f) => f.username === who.trim().toLowerCase())
+  return (
+    <Modal title={`Lend ${name}`} onClose={onClose}>
+      <form
+        className="stack-form"
+        onSubmit={submit(() =>
+          change(ctx, 'lend', `Lent ${qty}× ${name} to ${who.trim()}`, (d) => d.lend(stack.id, qty, { user: friend?.id ?? null, name: who, due: due || null })),
+        )}
+      >
+        <p className="muted small">The cards move to "Lent out" and remember where they came from, so giving them back is one click.</p>
+        <Qty max={stack.qty} value={qty} onChange={setQty} />
+        <label className="field">
+          <span>Lent to (a friend's username, or any name)</span>
+          <input required value={who} list="friend-names" onChange={(e) => setWho(e.target.value)} />
+          <datalist id="friend-names">
+            {friends.map((f) => (
+              <option key={f.id} value={f.username} />
+            ))}
+          </datalist>
+        </label>
+        <label className="field">
+          <span>Due back (optional)</span>
+          <input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+        </label>
+        <Actions busy={busy} label="Lend" error={error} />
+      </form>
+    </Modal>
+  )
+}
+
+export function GiveBackDialog({ stack, onClose }: { stack: Stack; onClose: () => void }) {
+  const ctx = useCollectionContext()
+  const c = useCollection(ctx.store)
+  const [qty, setQty] = useState(stack.qty)
+  const home = stack.lent_from_group && c.groups.has(stack.lent_from_group) ? stack.lent_from_group : ''
+  const [to, setTo] = useState(home)
+  const { busy, error, submit } = useSubmit(onClose)
+  const name = nameOfStack(ctx.searcher, c, stack)
+  return (
+    <Modal title={`${stack.lent_to_name} gave back ${name}`} onClose={onClose}>
+      <form
+        className="stack-form"
+        onSubmit={submit(() => change(ctx, 'return', `${stack.lent_to_name} gave back ${qty}× ${name}`, (d) => d.giveBack(stack.id, qty, to || undefined)))}
+      >
+        <Qty max={stack.qty} value={qty} onChange={setQty} />
+        <label className="field">
+          <span>Put them {home ? 'back' : ''} into</span>
+          <GroupSelect value={to} onChange={setTo} />
+        </label>
+        <Actions busy={busy} label="Done" error={error} />
       </form>
     </Modal>
   )

@@ -814,3 +814,73 @@ fieldset.details legend {
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------- decks and social */
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  width: 100%;
+  resize: vertical;
+}
+
+.pull-line {
+  padding: 0.45rem 0.25rem;
+}
+
+.pull-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.locations .picked {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+pre.lf {
+  background: var(--bg-soft);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  white-space: pre-wrap;
+}
+
+.holder {
+  margin-right: 0.75rem;
+}
+
+.friend-row,
+.request-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding: 0.5rem 0.25rem;
+}
+
+.request-row {
+  display: grid;
+}
+
+.badge.status-pending {
+  color: var(--limited);
+}
+
+.badge.status-accepted,
+.badge.status-done {
+  color: #2e7d32;
+}
+
+.badge.status-declined,
+.badge.status-cancelled {
+  color: var(--muted);
+}
+
+.chips.tabs {
+  margin-bottom: 0.75rem;
+}

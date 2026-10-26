@@ -3,6 +3,7 @@ import { groupPath } from '../../../core/collection/model.ts'
 import { CollectionContext, ownedIndex, useCollection } from '../../../ui/collection/context.ts'
 import { AddCardDialog } from '../../../ui/collection/dialogs.tsx'
 import type { YgoCard } from '../types.ts'
+import { CardSocial } from '../../../ui/social/CardSocial.tsx'
 import { useUrlParams } from '../../../lib/useUrlParams.ts'
 import { releaseDate, summary } from '../classify.ts'
 import { advancedCount, emptyQuery, fromParams, toParams, type SortKey, type YgoQuery } from '../query.ts'
@@ -91,6 +92,7 @@ export function SearchPage({ searcher, prices }: Props) {
         locationOf={(groupId) => groupPath(collection, groupId)}
         onAdd={canAdd ? () => setAdding(card) : undefined}
         addDialog={adding && <AddCardDialog card={adding} initialGroup={addTo} onClose={() => setAdding(undefined)} />}
+        social={canAdd && <CardSocial card={card} />}
       />
     )
 
