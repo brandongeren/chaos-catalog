@@ -32,6 +32,8 @@ export interface Group {
   notes: string
   photo_path: string | null
   sort_order: number
+  /** How many cards fit (optional); used for placement suggestions. */
+  capacity: number | null
   version: number
 }
 
@@ -307,6 +309,7 @@ export class Draft {
       notes: '',
       photo_path: null,
       sort_order: Date.now(),
+      capacity: null,
       version: 1,
       ...extra,
     }
@@ -516,4 +519,25 @@ export function conflictOf(c: Collection, op: Op): string | undefined {
     if (cur !== e.v) return `${e.t} ${e.id} is at version ${cur}, expected ${e.v}`
   }
   return undefined
+}
+
+/** Cards in each group. */
+export function groupCounts(c: Collection): Map<string, number> {
+  const m = new Map<string, number>()
+  for (const s of c.stacks.values()) m.set(s.group_id, (m.get(s.group_id) ?? 0) + s.qty)
+  return m
+}
+
+/**
+ * Where `qty` new cards fit: storage groups with a capacity and enough free room, emptiest first. Chaos storage
+ * doesn't care which group, only that there's space.
+ */
+export function suggestPlaces(c: Collection, qty: number, limit = 3): { group: Group; free: number }[] {
+  const counts = groupCounts(c)
+  return [...c.groups.values()]
+    .filter((g) => g.kind === 'storage' && g.capacity)
+    .map((g) => ({ group: g, free: g.capacity! - (counts.get(g.id) ?? 0) }))
+    .filter((x) => x.free >= qty)
+    .sort((a, b) => b.free - a.free)
+    .slice(0, limit)
 }

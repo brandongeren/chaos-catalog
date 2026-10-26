@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyOp, conflictOf, Draft, emptyCollection, type Collection, type Stack } from './model.ts'
+import { applyOp, conflictOf, Draft, emptyCollection, suggestPlaces, type Collection, type Stack } from './model.ts'
 
 const nameOf = (s: Pick<Stack, 'card_key' | 'custom_card_id'>) => (s.card_key === '14558127' ? 'Ash Blossom' : s.card_key ?? 'custom')
 
@@ -123,6 +123,19 @@ describe('Draft', () => {
     d.giveBack(lent.id, 2)
     c = applyOp(c, d.finish('return', 'return'))
     expect(stacksIn(c, a.id).map((x) => [x.qty, x.lent_to_name])).toEqual([[3, null]])
+  })
+
+  it('suggests groups with room, emptiest first', () => {
+    let c: Collection = emptyCollection()
+    const d = new Draft(c, nameOf)
+    const small = d.createGroup('Small', { capacity: 10 })
+    const big = d.createGroup('Big', { capacity: 100 })
+    d.createGroup('No limit')
+    d.add({ card_key: '1', qty: 8 }, small.id)
+    d.add({ card_key: '1', qty: 30 }, big.id)
+    c = applyOp(c, d.finish('setup', 'setup'))
+    expect(suggestPlaces(c, 2).map((x) => [x.group.name, x.free])).toEqual([['Big', 70], ['Small', 2]])
+    expect(suggestPlaces(c, 5).map((x) => x.group.name)).toEqual(['Big'])
   })
 
   it('refuses impossible edits', () => {

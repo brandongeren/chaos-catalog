@@ -280,7 +280,7 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
           <h2>{group.name}</h2>
           <p className="muted small">
             {groupPath(c, group.id)} · {group.kind === 'deck' ? 'Deck' : group.kind === 'holding' ? 'In-between area' : group.kind === 'lent' ? 'Lent out' : 'Group'}
-            {group.ordered ? ' · kept in order' : ''} · {count(c, group.id)} cards
+            {group.ordered ? ' · kept in order' : ''} · {count(c, group.id)}{group.capacity ? ` of ${group.capacity}` : ''} cards
           </p>
           {group.notes && <p className="muted">{group.notes}</p>}
         </div>

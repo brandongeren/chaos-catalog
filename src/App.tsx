@@ -18,6 +18,7 @@ import { FriendsPage } from './ui/social/FriendsPage.tsx'
 import { PricesPage } from './games/ygo/ui/PricesPage.tsx'
 import { SyncBanner } from './ui/collection/SyncBanner.tsx'
 import { ScanPage } from './games/ygo/ui/ScanPage.tsx'
+import { SyntaxGuide } from './games/ygo/ui/SyntaxGuide.tsx'
 
 type State =
   | { status: 'loading' }
@@ -150,6 +151,7 @@ function Shell() {
             {view === 'prices' && state.status === 'ok' && <PricesPage searcher={searcher} meta={state.meta} today={prices} />}
             {view === 'friends' && <FriendsPage searcher={searcher} tab={params.get('tab') ?? undefined} />}
             {view === 'data' && (ctx ? <DataPage /> : <SignInHint />)}
+            {view === 'syntax' && <SyntaxGuide />}
             {view === 'scan' && (own && !viewingOther ? <ScanPage searcher={searcher} /> : <SignInHint />)}
             {view === 'account' && <AccountPage inviteCode={params.get('invite') ?? undefined} />}
           </CollectionContext.Provider>

@@ -3,6 +3,7 @@ import { groupPath } from '../../../core/collection/model.ts'
 import { CollectionContext, ownedIndex, useCollection } from '../../../ui/collection/context.ts'
 import { AddCardDialog } from '../../../ui/collection/dialogs.tsx'
 import type { YgoCard } from '../types.ts'
+import { parseSyntax } from '../syntax.ts'
 import { CardSocial } from '../../../ui/social/CardSocial.tsx'
 import { useUrlParams } from '../../../lib/useUrlParams.ts'
 import { releaseDate, summary } from '../classify.ts'
@@ -14,7 +15,7 @@ import { Filters } from './Filters.tsx'
 import { money } from './format.ts'
 
 const PAGE = 60
-const KEEP = ['view', 'add', 'u']
+const KEEP = ['view', 'add', 'u', 'syntax']
 const NO_STORE = { subscribe: () => () => {}, getSnapshot: () => EMPTY } as unknown as Parameters<typeof useCollection>[0]
 const EMPTY = { boxes: new Map(), groups: new Map(), custom_cards: new Map(), stacks: new Map() }
 
@@ -42,7 +43,14 @@ export function SearchPage({ searcher, prices }: Props) {
   const [showFilters, setShowFilters] = useState(() => advancedCount(query) > 0)
 
   // Filtering 14k cards is fast, but keep typing smooth on slow phones.
-  const deferred = useDeferredValue(query)
+  // Syntax mode: the search box holds Scryfall-style syntax, parsed into the same filters.
+  const syntaxOn = params.get('syntax') === '1'
+  const parsed = useMemo(() => (syntaxOn ? parseSyntax(query.q, searcher) : undefined), [syntaxOn, query.q, searcher])
+  const effective = useMemo(
+    () => (parsed ? { ...parsed.query, mine: parsed.query.mine || query.mine, related: parsed.query.related ?? query.related } : query),
+    [parsed, query],
+  )
+  const deferred = useDeferredValue(effective)
   const cardPrice = useMemo(() => (prices ? (id: number) => prices.card[id] : undefined), [prices])
   // The collection being viewed (yours, or a public profile's), if any.
   const coll = useContext(CollectionContext)
@@ -102,7 +110,7 @@ export function SearchPage({ searcher, prices }: Props) {
         <input
           type="search"
           aria-label="Search cards"
-          placeholder="Card name, passcode or set code"
+          placeholder={syntaxOn ? 't:link a:dark atk>=2500 o:negate' : 'Card name, passcode or set code'}
           value={query.q}
           autoFocus
           onChange={(e) => update({ ...query, q: e.target.value }, true)}
@@ -110,9 +118,24 @@ export function SearchPage({ searcher, prices }: Props) {
         <label className="toggle" title="Tolerate typos and partial words">
           <input type="checkbox" checked={query.fuzzy} onChange={(e) => update({ ...query, fuzzy: e.target.checked })} /> Fuzzy
         </label>
-        <button type="button" className={showFilters ? 'chip on' : 'chip'} aria-expanded={showFilters} onClick={() => setShowFilters(!showFilters)}>
-          Advanced{advanced ? ` (${advanced})` : ''}
-        </button>
+        <label className="toggle" title="Type filters as text, like Scryfall">
+          <input
+            type="checkbox"
+            checked={syntaxOn}
+            onChange={(e) => {
+              const p = new URLSearchParams(params)
+              if (e.target.checked) p.set('syntax', '1')
+              else p.delete('syntax')
+              setParams(p)
+            }}
+          />{' '}
+          Syntax
+        </label>
+        {!syntaxOn && (
+          <button type="button" className={showFilters ? 'chip on' : 'chip'} aria-expanded={showFilters} onClick={() => setShowFilters(!showFilters)}>
+            Advanced{advanced ? ` (${advanced})` : ''}
+          </button>
+        )}
         {coll && (
           <label className="toggle" title="Only cards in this collection">
             <input type="checkbox" checked={query.mine} onChange={(e) => update({ ...query, mine: e.target.checked })} />{' '}
@@ -131,7 +154,20 @@ export function SearchPage({ searcher, prices }: Props) {
 
       {cardId && !card && <p className="error">No card with passcode {cardId}.</p>}
 
-      {showFilters && <Filters query={query} races={searcher.races} archetypes={searcher.archetypes} onChange={update} />}
+      {syntaxOn && (
+        <p className="small">
+          {parsed?.errors.map((e) => (
+            <span key={e} className="error">
+              {e}.{' '}
+            </span>
+          ))}
+          <a href="?view=syntax" onClick={(e) => (e.preventDefault(), setParams(new URLSearchParams({ view: 'syntax' })))}>
+            Syntax guide
+          </a>
+        </p>
+      )}
+
+      {showFilters && !syntaxOn && <Filters query={query} races={searcher.races} archetypes={searcher.archetypes} onChange={update} />}
 
       <div className="results-head">
         <span>

@@ -4,6 +4,7 @@ import {
   CONDITIONS,
   EDITIONS,
   groupPath,
+  suggestPlaces,
   type Availability,
   type Box,
   type Collection,
@@ -208,6 +209,7 @@ export function AddCardDialog({ card, onClose, initialGroup }: { card: YgoCard; 
   const [section, setSection] = useState<Section>(defaultSection(card))
   const { busy, error, submit } = useSubmit(onClose)
   const target = c.groups.get(groupId)
+  const suggestions = suggestPlaces(c, qty)
   return (
     <Modal title={`Add ${card.n}`} onClose={onClose}>
       <form
@@ -224,6 +226,16 @@ export function AddCardDialog({ card, onClose, initialGroup }: { card: YgoCard; 
           <span>Where</span>
           <GroupSelect value={c.groups.has(groupId) ? groupId : ''} onChange={setGroupId} />
         </label>
+        {suggestions.length > 0 && (
+          <p className="small">
+            Room for {qty}:{' '}
+            {suggestions.map((s) => (
+              <button key={s.group.id} type="button" className={groupId === s.group.id ? 'chip on' : 'chip'} onClick={() => setGroupId(s.group.id)}>
+                {groupPath(c, s.group.id)} ({s.free} free)
+              </button>
+            ))}
+          </p>
+        )}
         <label className="field">
           <span>How many</span>
           <input type="number" min={1} max={999} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} />
@@ -462,6 +474,7 @@ export function GroupDialog({ group, kind, boxId, onClose }: { group?: Group; ki
   const [groupKind, setKind] = useState<GroupKind>(group?.kind ?? kind ?? 'storage')
   const [ordered, setOrdered] = useState(group?.ordered ?? ctx.owner.group_ordered_default)
   const [notes, setNotes] = useState(group?.notes ?? '')
+  const [capacity, setCapacity] = useState(group?.capacity ? String(group.capacity) : '')
   const [file, setFile] = useState<File | null>()
   const { busy, error, submit } = useSubmit(onClose)
   const rows = [...new Set([...c.groups.values()].filter((g) => g.box_id === box && g.row_label).map((g) => g.row_label!))]
@@ -472,7 +485,7 @@ export function GroupDialog({ group, kind, boxId, onClose }: { group?: Group; ki
         className="stack-form"
         onSubmit={submit(async () => {
           const photo_path = await resolvePhoto(ctx.owner.id, group?.photo_path ?? null, file)
-          const fields = { name, box_id: box || null, row_label: row.trim() || null, kind: groupKind, ordered, notes, photo_path }
+          const fields = { name, box_id: box || null, row_label: row.trim() || null, kind: groupKind, ordered, notes, photo_path, capacity: Number(capacity) > 0 ? Math.floor(Number(capacity)) : null }
           return group
             ? change(ctx, 'edit_group', `Edited ${name}`, (d) => d.updateGroup(group.id, fields))
             : change(ctx, 'create_group', `Created ${KIND_LABEL[groupKind].toLowerCase()} ${name}`, (d) => void d.createGroup(name, fields))
@@ -517,6 +530,12 @@ export function GroupDialog({ group, kind, boxId, onClose }: { group?: Group; ki
         <label className="check">
           <input type="checkbox" checked={ordered} onChange={(e) => setOrdered(e.target.checked)} /> Cards are kept in a set order
         </label>
+        {groupKind === 'storage' && (
+          <label className="field">
+            <span>Holds how many cards? (optional; used to suggest where new cards fit)</span>
+            <input type="number" min={1} value={capacity} placeholder="e.g. 60" onChange={(e) => setCapacity(e.target.value)} />
+          </label>
+        )}
         <label className="field">
           <span>Notes</span>
           <input value={notes} onChange={(e) => setNotes(e.target.value)} />

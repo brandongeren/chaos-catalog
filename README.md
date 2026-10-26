@@ -73,7 +73,10 @@ fetch. For local experiments, `TCGCSV_MAX_GROUPS=40 npm run build:data` prices o
    the app with that code, then run `update public.profiles set is_admin = true where username = '<you>';`. Admins
    create invite links for others under Account.
 5. **Project Settings → API**: copy the project URL and the public anon (publishable) key.
-6. In GitHub: **Settings → Secrets and variables → Actions → New repository secret**: add `SUPABASE_URL` and
+6. **Deck links:** Edge Functions → Deploy a new function → name it `fetch-deck` and paste
+   `supabase/functions/fetch-deck/index.ts` (or `supabase functions deploy fetch-deck` with the Supabase CLI). Only
+   needed for importing YGOPRODeck / Neuron links; pasted decks and files work without it.
+7. In GitHub: **Settings → Secrets and variables → Actions → New repository secret**: add `SUPABASE_URL` and
    `SUPABASE_ANON_KEY`. The build passes them to the app, and the daily job pings the project so the free tier never
    pauses it. For local development put the same two values in `.env.local` as `VITE_SUPABASE_URL` and
    `VITE_SUPABASE_ANON_KEY` (gitignored).

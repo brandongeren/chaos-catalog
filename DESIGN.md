@@ -163,7 +163,8 @@ cards", off by default).
 - **Related cards:** cards sharing YGOPRODeck's `archetype` field, plus **mentions in both directions** (cards whose text names this card, and cards
   this card's text names). The daily job builds the mentions index from quoted names in card text.
 - **Sort:** TCG release date, name, ATK, DEF, level/rank, Genesys points, price, quantity owned.
-- **Syntax mode** (Scryfall-style), with a guide page. Draft keywords: `t:effect a:dark atk>=2500 lv:4 r:4 link:3
+- **Syntax mode** (Scryfall-style), with a guide page (`?view=syntax`). Built 2026-10-26 in `syntax.ts`; it parses
+  into the same query as the filter panel. AND across keywords, commas mean "any of" within one. Draft keywords were: `t:effect a:dark atk>=2500 lv:4 r:4 link:3
   arch:"blue-eyes" o:"draw" gp>0 set:LOB rar:ur cond:nm in:box:"Box 3" avail:trade mentions:"Dark Magician"`.
   No Yu-Gi-Oh parser like this seems to exist, so we write our own, borrowing ideas from open-source Magic tools.
 - **Results:** each card lists every location holding it (box → row → group, quantity, details), with inline
@@ -180,7 +181,8 @@ cards", off by default).
 - **History view:** a timeline of operations, filterable by date, card, group and batch. You can **select some cards from
   any past change** (even ones removed days ago) and add them to any group: this is how you take a deck apart and file
   the cards away.
-- **Placement suggestions** (later): suggest a group with free space for new cards (needs optional group capacity).
+- **Placement suggestions** (built 2026-10-26, `0004_capacity.sql`): storage groups may have a capacity; the add
+  dialog offers the emptiest groups with room for the quantity being added.
 
 ---
 
@@ -334,7 +336,7 @@ card category (100 free calls a month, then paid). Risk: foils, glare and small 
 | 7. Prices | Daily price files, values, movers page | built 2026-10-26 |
 | 8. Offline | Operation queue, conflict screen | built 2026-10-26 |
 | 9. Scanning | Camera, card detection, OCR, confirm list | built 2026-10-26; accuracy on real photos untested |
-| 10. Extras | Syntax search mode and guide, placement suggestions, card artwork |  |
+| 10. Extras | Syntax search mode and guide, placement suggestions, card artwork | syntax + guide and placement built 2026-10-26; artwork not started (needs a hosting decision, §13) |
 
 Syntax search could move earlier (after phase 1) if you want it sooner.
 
