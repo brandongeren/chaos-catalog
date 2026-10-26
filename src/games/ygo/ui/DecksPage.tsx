@@ -112,7 +112,7 @@ export function DecksPage({ searcher, prices }: { searcher: Searcher; prices?: Y
       <h2>Decks</h2>
       <p className="muted small">
         Paste a decklist (.ydk text, ydke:// link, YGO Omega code, or lines like "3 Ash Blossom & Joyous Spring"), a YGOPRODeck or
-        Neuron deck link, or open a .ydk file. You'll see where each card is in {ctx?.readOnly ? `${ctx.owner.username}'s` : 'your'} collection.
+        Neuron deck link, or open a .ydk file. From Duelingbook, export the deck (.ydk or ydke://) and paste or open that. You'll see where each card is in {ctx?.readOnly ? `${ctx.owner.username}'s` : 'your'} collection.
       </p>
       <form
         className="stack-form"

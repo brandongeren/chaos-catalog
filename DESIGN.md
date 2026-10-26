@@ -377,6 +377,12 @@ Syntax search could move earlier (after phase 1) if you want it sooner.
     `detailtext_ext` and `detailtext_side` sections. A prototype parser got 42/15/15 and 40/15/15 on the two sample
     decks, and **every** cid matched YGOPRODeck's `konami_id`.
 
+- **Duelingbook links: not supported (checked 2026-10-26).** Its deck page loads the list from
+  `php-scripts/load-deck.php` only with a Cloudflare Turnstile (anti-bot) token, so a server can't fetch it without
+  defeating that check. Users export from Duelingbook (.ydk file or ydke:// text) and paste or upload that instead.
+- **Live checks 2026-10-26:** YGOPRODeck link (45/15/15), Neuron link (42/15/15), .ydk file and ydke:// all import on
+  the deployed site.
+
 ## 16. Still open
 
 - OCR accuracy on real photos (foils, lighting, several cards per photo). **Tabled** until phase 9; needs sample photos.
