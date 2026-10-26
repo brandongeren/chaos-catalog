@@ -383,6 +383,11 @@ Syntax search could move earlier (after phase 1) if you want it sooner.
 - **Live checks 2026-10-26:** YGOPRODeck link (45/15/15), Neuron link (42/15/15), .ydk file and ydke:// all import on
   the deployed site.
 
+- **GitHub schedules are best effort (2026-10-26):** the first day's 21:17 UTC run never started (0 scheduled runs
+  2+ hours later; started by hand instead). The workflow now has a second slot (03:47 UTC); the once-a-day TCGCSV guard
+  makes the extra run harmless. GitHub also disables schedules on public repos after 60 days without commits, which
+  would stop the data updates and the Supabase keep-awake ping. The site shows a notice when data is over 3 days old.
+
 ## 16. Still open
 
 - OCR accuracy on real photos (foils, lighting, several cards per photo). **Tabled** until phase 9; needs sample photos.
@@ -395,3 +400,5 @@ Syntax search could move earlier (after phase 1) if you want it sooner.
   are added to the catalog. TCGCSV's daily archive is offline, so a full run is ~660 price requests plus product lists
   for changed sets, about 3 minutes at TCGCSV's suggested pace.
 - Search speed on a phone with ~14.6k cards and fuzzy matching on (test in phase 1).
+- A scheduler that doesn't depend on GitHub's (e.g. Supabase pg_cron calling the workflow_dispatch API with a
+  repo-scoped token), if the GitHub schedule proves unreliable or the 60-day rule becomes a problem.

@@ -157,6 +157,7 @@ function Shell() {
           </CollectionContext.Provider>
         )}
       </main>
+      {state.status === 'ok' && <StaleNotice meta={state.meta} />}
       {state.status === 'ok' && (
         <footer className="muted small">
           {state.meta.cardCount.toLocaleString()} cards · card data from YGOPRODeck (version {state.meta.dbVersion}) · prices
@@ -172,4 +173,20 @@ function SignInHint() {
   const { session, profile } = useAuth()
   if (session && !profile) return <p className="muted">Loading your profile…</p>
   return <p className="muted">Sign in to keep a collection.</p>
+}
+
+/** The daily update can fail or be skipped; say so instead of quietly showing old data. */
+function StaleNotice({ meta }: { meta: YgoMeta }) {
+  const [now] = useState(() => Date.now())
+  const days = (iso: string | undefined) => (iso ? Math.floor((now - Date.parse(iso)) / 86400000) : Infinity)
+  const built = days(meta.builtAt)
+  const priced = days(meta.priceDays[0])
+  if (built < 3 && priced < 3) return null
+  return (
+    <p className="error small">
+      The daily update seems to be stuck: card data was last built {built === Infinity ? 'never' : `${built} days ago`}
+      {priced !== Infinity ? `, prices are from ${meta.priceDays[0]}` : ', and there are no prices yet'}. If you run this site, check
+      GitHub → Actions → Build and deploy.
+    </p>
+  )
 }

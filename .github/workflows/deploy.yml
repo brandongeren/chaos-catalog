@@ -7,6 +7,9 @@ on:
     branches: [main]
   schedule:
     - cron: '17 21 * * *' # daily, 21:17 UTC: after TCGCSV's ~20:00 UTC price update
+    # Backup slot: GitHub's schedules are best effort (they can be late or skipped). The second run reuses the day's
+    # prices if the first already got them, so TCGCSV is still asked at most once a day.
+    - cron: '47 3 * * *' # 03:47 UTC
   workflow_dispatch:
 
 permissions:
