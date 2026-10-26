@@ -313,6 +313,7 @@ card category (100 free calls a month, then paid). Risk: foils, glare and small 
 
 ## 13. Look and feel
 
+- **Home page** (decided 2026-10-26): your collection when signed in, search otherwise. Collection is the first tab.
 - Follows the device's light/dark setting.
 - Search: Scryfall-clean, with YGOPRODeck/Neuron-level filtering behind "Advanced".
 - Deck and collection views: Moxfield-like, adapted to Yu-Gi-Oh (Main/Extra/Side).

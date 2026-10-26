@@ -81,7 +81,8 @@ function Shell() {
   }, [])
 
   const searcher = useMemo(() => (state.status === 'ok' ? createSearcher(state.catalog.cards) : undefined), [state])
-  const view = params.get('view') ?? 'search'
+  // Home is your collection when signed in; search for everyone else (a collection needs an account).
+  const view = params.get('view') ?? (profile ? 'collection' : 'search')
   const username = params.get('u')
   const other = usePublicProfile(username && username !== profile?.username ? username : null)
   const viewingOther = !!username && username !== profile?.username
@@ -104,8 +105,8 @@ function Shell() {
           <span className="brand-name">Chaos Catalog</span>
         </a>
         <nav className="tabs">
-          {tab('search', 'Search')}
           {profile && tab('collection', 'Collection')}
+          {tab('search', 'Search')}
           {tab('decks', 'Decks')}
           {tab('prices', 'Prices')}
           {profile && tab('friends', 'Friends')}
