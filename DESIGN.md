@@ -301,6 +301,14 @@ card category (100 free calls a month, then paid). Risk: foils, glare and small 
 
 ---
 
+### As built (2026-10-26)
+- No separate card-detection step: Tesseract.js reads the whole (upscaled, high-contrast grey) photo with a
+  whitelist of A–Z, 0–9 and "-", and every word that turns into a **set code that exists in the catalog** is one
+  card. Letter/digit confusions are fixed only in the number part (O→0, S→5, …); a missing dash and words split at the
+  dash are handled. 8-digit passcodes count only beyond the copies already found by set code (foil glare fallback).
+- Tesseract's engine and English data are downloaded by the browser on first scan (from its CDN); photos never leave
+  the device. Synthetic check (rendered 9 px codes): 3 of 4 codes read, no false matches. Real photos still to test.
+
 ## 13. Look and feel
 
 - Follows the device's light/dark setting.
@@ -325,7 +333,7 @@ card category (100 free calls a month, then paid). Risk: foils, glare and small 
 | 6. Social | Invites, profiles, city, privacy, friends, availability, who-has-it, requests, lending, wants, trade matching | built 2026-10-26; needs migration 0003 |
 | 7. Prices | Daily price files, values, movers page | built 2026-10-26 |
 | 8. Offline | Operation queue, conflict screen | built 2026-10-26 |
-| 9. Scanning | Camera, card detection, OCR, confirm list |  |
+| 9. Scanning | Camera, card detection, OCR, confirm list | built 2026-10-26; accuracy on real photos untested |
 | 10. Extras | Syntax search mode and guide, placement suggestions, card artwork |  |
 
 Syntax search could move earlier (after phase 1) if you want it sooner.

@@ -99,6 +99,9 @@ export function CollectionPage() {
             <button type="button" className="chip" onClick={() => setDialog({ kind: 'custom' })}>
               + Custom card
             </button>
+            <button type="button" className="chip" onClick={() => setParams(new URLSearchParams({ view: 'scan' }))}>
+              Scan cards
+            </button>
             <button type="button" className="chip" onClick={() => setParams(new URLSearchParams({ view: 'data' }))}>
               Import / export
             </button>
