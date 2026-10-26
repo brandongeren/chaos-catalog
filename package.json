@@ -9,9 +9,12 @@
     "build:data": "tsx scripts/build-data.ts",
     "lint": "oxlint",
     "typecheck": "tsc -b",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
+    "idb-keyval": "^6.3.0",
+    "minisearch": "^7.2.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
@@ -23,7 +26,8 @@
     "oxlint": "^1.88.0",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=20.19"

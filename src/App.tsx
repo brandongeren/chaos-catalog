@@ -1,47 +1,54 @@
-import { useEffect, useState } from 'react'
-import type { YgoMeta } from './games/ygo/types.ts'
+import { useEffect, useMemo, useState } from 'react'
+import { loadCatalog, loadMeta, loadPrices } from './games/ygo/data.ts'
+import { createSearcher } from './games/ygo/search.ts'
+import type { YgoCatalog, YgoMeta, YgoPriceDay } from './games/ygo/types.ts'
+import { SearchPage } from './games/ygo/ui/SearchPage.tsx'
 
-// Phase 0 placeholder: proves the deploy and the daily data job work end to end. Search replaces it in phase 1.
-
-type State = { status: 'loading' } | { status: 'ok'; meta: YgoMeta } | { status: 'error'; message: string }
+type State =
+  | { status: 'loading' }
+  | { status: 'ok'; meta: YgoMeta; catalog: YgoCatalog }
+  | { status: 'error'; message: string }
 
 export default function App() {
   const [state, setState] = useState<State>({ status: 'loading' })
+  const [prices, setPrices] = useState<YgoPriceDay>()
 
   useEffect(() => {
-    fetch(`${import.meta.env.BASE_URL}data/ygo/meta.json`, { cache: 'no-cache' })
-      .then((res) => {
-        if (!res.ok) throw new Error(`card data not found (HTTP ${res.status}); run npm run build:data`)
-        return res.json() as Promise<YgoMeta>
+    loadMeta()
+      .then(async (meta) => {
+        setState({ status: 'ok', meta, catalog: await loadCatalog(meta) })
+        // Prices are optional extras: load after the catalog so search is usable sooner.
+        loadPrices(meta).then(setPrices, () => {})
       })
-      .then((meta) => setState({ status: 'ok', meta }))
       .catch((err: Error) => setState({ status: 'error', message: err.message }))
   }, [])
 
+  const searcher = useMemo(() => (state.status === 'ok' ? createSearcher(state.catalog.cards) : undefined), [state])
+
   return (
-    <main className="page">
-      <h1>Chaos Catalog</h1>
-      <p className="muted">Chaos storage for your card collection. Search is coming in phase 1.</p>
-      {state.status === 'loading' && <p>Loading card data…</p>}
-      {state.status === 'error' && <p className="error">{state.message}</p>}
+    <div className="page">
+      <header className="top">
+        <a className="brand" href={import.meta.env.BASE_URL}>
+          <img src={`${import.meta.env.BASE_URL}icons/icon-32.png`} alt="" width={28} height={28} />
+          Chaos Catalog
+        </a>
+      </header>
+      <main>
+        {state.status === 'loading' && <p className="muted">Loading cards…</p>}
+        {state.status === 'error' && (
+          <p className="error">
+            {state.message}. {import.meta.env.DEV && 'Run npm run build:data first.'}
+          </p>
+        )}
+        {searcher && <SearchPage searcher={searcher} prices={prices} />}
+      </main>
       {state.status === 'ok' && (
-        <dl className="facts">
-          <dt>Cards</dt>
-          <dd>{state.meta.cardCount.toLocaleString()}</dd>
-          <dt>Printings</dt>
-          <dd>{state.meta.printingCount.toLocaleString()}</dd>
-          <dt>Card database</dt>
-          <dd>
-            version {state.meta.dbVersion}, updated {state.meta.dbUpdated} (UTC)
-          </dd>
-          <dt>Data built</dt>
-          <dd>{new Date(state.meta.builtAt).toLocaleString()}</dd>
-          <dt>Price days kept</dt>
-          <dd>
-            {state.meta.priceDays.length} of 28 (newest {state.meta.priceDays[0] ?? 'none'})
-          </dd>
-        </dl>
+        <footer className="muted small">
+          {state.meta.cardCount.toLocaleString()} cards · card data from YGOPRODeck (version {state.meta.dbVersion}) · prices
+          from TCGplayer via TCGCSV{prices ? ` (${prices.date})` : ''}. Yu-Gi-Oh! is a trademark of Konami; this site isn't
+          affiliated with Konami.
+        </footer>
       )}
-    </main>
+    </div>
   )
 }

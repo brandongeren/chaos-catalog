@@ -268,19 +268,19 @@ card category (100 free calls a month, then paid). Risk: foils, glare and small 
 
 ## 14. Build phases
 
-| Phase | Delivers |
-|---|---|
-| 0. Setup | Repo, GitHub Pages deploy, Supabase project, daily catalog job |
-| 1. Search | Catalog search for everyone (no login): fuzzy, filters, sorts, related cards |
-| 2. Collection core | Login, boxes/rows/groups, add/move/split/merge, details, operations log, history view, public read-only |
-| 3. Bulk and decks | Multi-select bulk actions, holding areas, deck groups, re-add from history |
-| 4. Deck formats | Import (all formats incl. Neuron), pull list, missing cards, LF list, export |
-| 5. Collection files | JSON and CSV import/export |
-| 6. Social | Invites, profiles, city, privacy, friends, availability, who-has-it, requests, lending, wants, trade matching |
-| 7. Prices | Daily price files, values, movers page |
-| 8. Offline | Operation queue, conflict screen |
-| 9. Scanning | Camera, card detection, OCR, confirm list |
-| 10. Extras | Syntax search mode and guide, placement suggestions, card artwork |
+| Phase | Delivers | Status |
+|---|---|---|
+| 0. Setup | Repo, GitHub Pages deploy, Supabase project, daily catalog job | done 2026-10-26 |
+| 1. Search | Catalog search for everyone (no login): fuzzy, filters, sorts, related cards | done 2026-10-26 |
+| 2. Collection core | Login, boxes/rows/groups, add/move/split/merge, details, operations log, history view, public read-only |  |
+| 3. Bulk and decks | Multi-select bulk actions, holding areas, deck groups, re-add from history |  |
+| 4. Deck formats | Import (all formats incl. Neuron), pull list, missing cards, LF list, export |  |
+| 5. Collection files | JSON and CSV import/export |  |
+| 6. Social | Invites, profiles, city, privacy, friends, availability, who-has-it, requests, lending, wants, trade matching |  |
+| 7. Prices | Daily price files, values, movers page |  |
+| 8. Offline | Operation queue, conflict screen |  |
+| 9. Scanning | Camera, card detection, OCR, confirm list |  |
+| 10. Extras | Syntax search mode and guide, placement suggestions, card artwork |  |
 
 Syntax search could move earlier (after phase 1) if you want it sooner.
 
@@ -298,6 +298,10 @@ Syntax search could move earlier (after phase 1) if you want it sooner.
 - **Mentions index:** quoted names in card text resolve to 3,418 links across 2,562 cards (e.g. 62 cards mention "Dark
   Magician"). The quoted strings that don't match a card are mostly archetype names (e.g. "Dragonmaid"), which can link
   to the archetype instead, plus some parsing noise to filter out.
+- **Alternate-art passcodes:** 125 cards have alternate artworks with their own passcodes (172 in all), listed in
+  `card_images`. YGOPRODeck's bulk list sometimes returns an alternate as the card's `id` (Dark Magician: 46986420,
+  not 46986414), so the catalog keeps all of them (`alt`) and every lookup accepts any of them.
+- **ATK/DEF "?"** are stored as -1 (96 cards); shown as "?" and ignored by number filters.
 - **Printing keys:** `<passcode>|<set code>|<rarity name>`. YGOPRODeck lists a few set codes on two different cards
   (e.g. BLCR-EN015 on two Crystal Beasts), and some rarities have no rarity code, so neither set code alone nor
   set code + rarity code is unique. Set names contain HTML entities (`&apos;`), decoded by the builder.

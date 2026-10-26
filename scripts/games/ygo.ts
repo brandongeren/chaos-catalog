@@ -25,6 +25,7 @@ interface ApiCard {
   frameType: string
   desc: string
   race: string
+  typeline?: string[]
   attribute?: string
   atk?: number
   def?: number
@@ -34,6 +35,7 @@ interface ApiCard {
   scale?: number
   archetype?: string
   card_sets?: { set_name: string; set_code: string; set_rarity: string; set_rarity_code?: string; set_price?: string }[]
+  card_images?: { id: number }[]
   card_prices?: { tcgplayer_price?: string }[]
   banlist_info?: { ban_tcg?: BanStatus; ban_ocg?: BanStatus }
   misc_info?: { tcg_date?: string; ocg_date?: string; konami_id?: number; genesys_points?: number }[]
@@ -69,6 +71,12 @@ const decodeEntities = (s: string) =>
 function toCard(c: ApiCard): YgoCard {
   const misc = c.misc_info?.[0] ?? {}
   const card: YgoCard = { id: c.id, n: c.name, t: c.type, f: c.frameType, d: c.desc, r: c.race, gp: misc.genesys_points ?? 0 }
+  // Alternate artworks have their own passcodes (decklists use them); YGOPRODeck's bulk list sometimes puts an
+  // alternate first (Dark Magician comes back as 46986420, not 46986414), so every one must resolve to the card.
+  const alt = (c.card_images ?? []).map((i) => i.id).filter((id) => id !== c.id)
+  if (alt.length) card.alt = alt
+  const tags = c.typeline?.filter((x) => x !== c.race)
+  if (tags?.length) card.tl = tags
   if (c.attribute) card.a = c.attribute
   if (c.atk !== undefined && c.atk !== null) card.atk = c.atk
   if (c.def !== undefined && c.def !== null) card.def = c.def

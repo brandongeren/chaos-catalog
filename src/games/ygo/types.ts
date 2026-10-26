@@ -20,6 +20,8 @@ export interface YgoPrinting {
 export interface YgoCard {
   /** Passcode (YGOPRODeck id). Card key in the app is `ygo:<id>`. */
   id: number
+  /** Other passcodes of this card (alternate artworks). */
+  alt?: number[]
   /** Name. */
   n: string
   /** Type line as YGOPRODeck names it, e.g. "Effect Monster", "Spell Card". */
@@ -30,9 +32,13 @@ export interface YgoCard {
   d: string
   /** Race: monster type ("Spellcaster") or Spell/Trap subtype ("Quick-Play"). */
   r: string
+  /** Typeline tags without the race, e.g. ["Tuner", "Effect"] or ["Xyz", "Pendulum", "Effect"] (monsters only). */
+  tl?: string[]
   /** Attribute (monsters only), e.g. "DARK". */
   a?: string
+  /** -1 means "?". */
   atk?: number
+  /** -1 means "?". */
   def?: number
   /** Level or Rank (YGOPRODeck stores both in `level`; the frame type tells which). */
   lv?: number

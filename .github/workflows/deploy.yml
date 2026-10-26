@@ -30,6 +30,7 @@ jobs:
       - id: pages
         uses: actions/configure-pages@v5
       - run: npm ci
+      - run: npm test
       # Earlier days' price files are read back from the live site, so they never need committing.
       - name: Build card data
         run: npm run build:data -- --previous "${{ steps.pages.outputs.base_url }}/data"
