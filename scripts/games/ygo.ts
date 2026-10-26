@@ -161,36 +161,39 @@ export async function buildYgo(
     (previousBase ? await getJsonOr<YgoPriceDay>(`${previousBase}/prices/${d}.json`) : undefined) ??
     ((await readLocal(`prices/${d}.json`)) as YgoPriceDay | undefined)
 
-  // Today's prices: TCGCSV's latest update, fetched only if that day isn't built yet (its once-a-day rule).
+  // Today's prices: TCGCSV's latest update, fetched only if that day isn't built yet (its once-a-day rule), and
+  // never when TCGCSV_FETCH=false (code pushes: they redeploy with the published prices instead).
   // The product cache (which TCGplayer product is which printing) is always applied, so TCGplayer-only printings
   // stay in the catalog on days when prices are reused.
-  const priceDate = await tcgcsvDate()
+  const mayFetch = process.env.TCGCSV_FETCH !== 'false'
+  const priceDate = mayFetch ? await tcgcsvDate() : undefined
   const prices = new Map<string, YgoPriceDay>()
   let products =
     (previousBase ? await getJsonOr<ProductCache>(`${previousBase}/tcgplayer-products.json`) : undefined) ??
-    ((await readLocal('tcgplayer-products.json')) as ProductCache | undefined)
-  const existing = products && prevMeta?.priceDays.includes(priceDate) ? await loadDay(priceDate) : undefined
-  if (existing) {
-    prices.set(priceDate, existing)
-    console.log(`ygo: prices for ${priceDate} already built; not re-fetching TCGCSV`)
-  } else {
+    ((await readLocal('tcgplayer-products.json')) as ProductCache | undefined) ??
+    {}
+  const built = priceDate && prevMeta?.priceDays.includes(priceDate) ? await loadDay(priceDate) : undefined
+  const fetchToday = mayFetch && !built
+  if (!mayFetch) console.log('ygo: TCGCSV_FETCH=false; reusing published prices')
+  else if (built) console.log(`ygo: prices for ${priceDate} already built; not re-fetching TCGCSV`)
+  else {
     const refreshed = await refreshProducts(products)
     products = refreshed.products
     console.log(`ygo: TCGCSV ${priceDate}: ${refreshed.groups} sets, ${refreshed.requests} product list(s) fetched`)
   }
-  const { match, stats } = matchProducts(cards, products!)
+  const { match, stats } = matchProducts(cards, products)
   console.log(`ygo: TCGplayer products matched: ${JSON.stringify(stats)}`)
-  if (!existing) {
-    const { printing, requests, collisions } = await fetchPrices(products!, match)
-    prices.set(priceDate, { date: priceDate, source: 'tcgcsv', card: cardPrices(data, printing), printing })
+  if (fetchToday) {
+    const { printing, requests, collisions } = await fetchPrices(products, match)
+    prices.set(priceDate!, { date: priceDate!, source: 'tcgcsv', card: cardPrices(data, printing), printing })
     console.log(`ygo: ${Object.keys(printing).length} printings priced from ${requests} price file(s); ${collisions} duplicate listing(s)`)
   }
-  console.log(`ygo: ${addTcgPrintings(products!, match)} TCGplayer-only printing(s) added to the catalog`)
+  console.log(`ygo: ${addTcgPrintings(products, match)} TCGplayer-only printing(s) added to the catalog`)
 
   // Carry forward earlier days: from the published site first, else from a previous local build.
   for (const d of prevMeta?.priceDays ?? []) {
     if (prices.size >= PRICE_DAYS) break
-    if (d >= priceDate) continue
+    if (prices.has(d)) continue
     const day = await loadDay(d)
     if (day?.source === 'tcgcsv') prices.set(d, day) // older YGOPRODeck-based files have another shape
   }
@@ -209,6 +212,6 @@ export async function buildYgo(
     meta,
     catalog: { dbVersion: ver.database_version, dbUpdated: ver.last_update, cards },
     prices: new Map(priceDays.map((d) => [d, prices.get(d)!])),
-    products: products!,
+    products,
   }
 }

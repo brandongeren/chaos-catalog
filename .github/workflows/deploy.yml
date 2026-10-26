@@ -33,6 +33,10 @@ jobs:
       # Earlier days' price files are read back from the live site, so they never need committing.
       - name: Build card data
         run: npm run build:data -- --previous "${{ steps.pages.outputs.base_url }}/data"
+        env:
+          # Code pushes redeploy with the published prices; only the daily and manual runs call TCGCSV
+          # (it allows one request per price file per day).
+          TCGCSV_FETCH: ${{ github.event_name != 'push' }}
       - name: Build app
         run: npm run build
         env:

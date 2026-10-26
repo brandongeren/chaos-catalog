@@ -49,7 +49,8 @@ back from the live site, so data files are never committed.
 hotlinking of images (the app icon was downloaded once and is stored in `assets/`). TCGCSV asks for a clear
 User-Agent, a pause between requests, and no more than one request per price file in 24 hours. The builder does all of
 this: one request at a time, 250 ms apart, and it skips TCGCSV entirely when that day's prices are already built
-(locally or on the live site). For local experiments, `TCGCSV_MAX_GROUPS=40 npm run build:data` prices only the first
+(locally or on the live site). Code pushes set `TCGCSV_FETCH=false` and redeploy with the published prices; only the daily and manual runs
+fetch. For local experiments, `TCGCSV_MAX_GROUPS=40 npm run build:data` prices only the first
 40 sets. Don't call either API from the browser.
 
 ## Setup: GitHub Pages
