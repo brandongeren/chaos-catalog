@@ -119,6 +119,24 @@ what the owner's profile allows (section 9).
   `fields` (JSON), `notes`.
 - **wants**: standing wants list: `game`, `card_key`, `qty`, optional preferred details.
 
+### How changes are applied (built 2026-10-26)
+- The app builds every change as one **op** with a `Draft` (`src/core/collection/model.ts`): it edits a working copy
+  and lists every row it touched with the **version** it saw, plus the full new rows and the deleted ids.
+- The server's `apply_ops()` (security definer) checks each version, applies the rows with `owner_id = auth.uid()`
+  forced, bumps versions, and logs the op. A version mismatch rejects the op (no silent overwrite); a repeated
+  `client_op_id` is a no-op (safe retries). The app applies the same op locally first (`applyOp`), so the screen updates
+  at once; on a rejection it reloads. Tests run the real SQL in PGlite and check both sides produce identical rows.
+- There are **no** insert/update/delete policies: direct table writes are impossible; reads go through RLS.
+- **Merging:** adding or moving copies into an **unordered** group merges them into an identical stack (same card and
+  every detail, availability and loan field). **Ordered** groups never auto-merge: new stacks go at the end, and the
+  group view offers Split, Merge (identical neighbours) and ↑/↓ reordering.
+- Deck sections are set when cards enter a deck group (Extra for Fusion/Synchro/Xyz/Link, else Main) and cleared when
+  they leave.
+- **Sign-up:** a trigger on `auth.users` consumes an unused, unexpired invite code or fails the sign-up. Admins (set by
+  hand: `profiles.is_admin`) create invite links in the app. The very first invite is inserted in the SQL editor.
+- **Photos:** public `photos` bucket, owner-only uploads into `<user id>/`, 200 KB cap, thumbnails made on the device.
+  A photo's URL is unguessable but works for anyone who has it, even if the profile is later made private.
+
 ### History and sync
 - **operations**: the single source of history **and** the offline queue.
   - `id`, `client_op_id` (UUID made on the device, so a retry is never applied twice), `batch_id`, `device`,
@@ -272,8 +290,8 @@ card category (100 free calls a month, then paid). Risk: foils, glare and small 
 |---|---|---|
 | 0. Setup | Repo, GitHub Pages deploy, Supabase project, daily catalog job | done 2026-10-26 |
 | 1. Search | Catalog search for everyone (no login): fuzzy, filters, sorts, related cards | done 2026-10-26 |
-| 2. Collection core | Login, boxes/rows/groups, add/move/split/merge, details, operations log, history view, public read-only |  |
-| 3. Bulk and decks | Multi-select bulk actions, holding areas, deck groups, re-add from history |  |
+| 2. Collection core | Login, boxes/rows/groups, add/move/split/merge, details, operations log, history view, public read-only | built 2026-10-26; needs the migrations applied |
+| 3. Bulk and decks | Multi-select bulk actions, holding areas, deck groups, re-add from history | built 2026-10-26 |
 | 4. Deck formats | Import (all formats incl. Neuron), pull list, missing cards, LF list, export |  |
 | 5. Collection files | JSON and CSV import/export |  |
 | 6. Social | Invites, profiles, city, privacy, friends, availability, who-has-it, requests, lending, wants, trade matching |  |

@@ -1,6 +1,8 @@
 import { summary } from '../classify.ts'
 import { printingKey } from '../keys.ts'
 import type { Searcher } from '../search.ts'
+import type { ReactNode } from 'react'
+import type { Stack } from '../../../core/collection/model.ts'
 import type { YgoCard, YgoPriceDay } from '../types.ts'
 import { money } from './format.ts'
 
@@ -12,11 +14,16 @@ interface Props {
   onShowRelated: (id: number) => void
   onArchetype: (archetype: string) => void
   onBack: () => void
+  /** Copies in the viewed collection (undefined = no collection loaded). */
+  owned?: Stack[]
+  locationOf?: (groupId: string) => string
+  onAdd?: () => void
+  addDialog?: ReactNode
 }
 
 const EDITIONS = ['1st Edition', 'Unlimited', 'Limited']
 
-export function CardDetail({ card, searcher, prices, onOpen, onShowRelated, onArchetype, onBack }: Props) {
+export function CardDetail({ card, searcher, prices, onOpen, onShowRelated, onArchetype, onBack, owned, locationOf, onAdd, addDialog }: Props) {
   const list = (ids: number[] | undefined) => (ids ?? []).map((id) => searcher.byId.get(id)).filter((c): c is YgoCard => !!c)
   const mentions = list(card.m)
   const mentionedBy = list(card.mb)
@@ -44,6 +51,33 @@ export function CardDetail({ card, searcher, prices, onOpen, onShowRelated, onAr
       <h2>{card.n}</h2>
       <p className="muted">{summary(card)}</p>
       <p className="card-text">{card.d}</p>
+
+      {(owned || onAdd) && (
+        <section className="owned-box">
+          <h3>
+            {owned?.length ? `In the collection: ${owned.reduce((n, s) => n + s.qty, 0)}` : 'Not in the collection'}{' '}
+            {onAdd && (
+              <button type="button" className="chip" onClick={onAdd}>
+                + Add
+              </button>
+            )}
+          </h3>
+          {owned && owned.length > 0 && (
+            <ul className="locations">
+              {owned.map((s) => (
+                <li key={s.id}>
+                  <strong>{s.qty}×</strong> {locationOf?.(s.group_id)}
+                  <span className="muted small">
+                    {' '}
+                    {[s.set_code, s.rarity, s.edition, s.condition, s.availability !== 'none' ? `for ${s.availability}` : null].filter(Boolean).join(' · ')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+      {addDialog}
 
       <dl className="facts">
         <dt>TCG release</dt>

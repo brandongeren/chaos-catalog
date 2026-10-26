@@ -1,4 +1,8 @@
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useContext, useDeferredValue, useMemo, useState } from 'react'
+import { groupPath } from '../../../core/collection/model.ts'
+import { CollectionContext, ownedIndex, useCollection } from '../../../ui/collection/context.ts'
+import { AddCardDialog } from '../../../ui/collection/dialogs.tsx'
+import type { YgoCard } from '../types.ts'
 import { useUrlParams } from '../../../lib/useUrlParams.ts'
 import { releaseDate, summary } from '../classify.ts'
 import { advancedCount, emptyQuery, fromParams, toParams, type SortKey, type YgoQuery } from '../query.ts'
@@ -9,6 +13,9 @@ import { Filters } from './Filters.tsx'
 import { money } from './format.ts'
 
 const PAGE = 60
+const KEEP = ['view', 'add', 'u']
+const NO_STORE = { subscribe: () => () => {}, getSnapshot: () => EMPTY } as unknown as Parameters<typeof useCollection>[0]
+const EMPTY = { boxes: new Map(), groups: new Map(), custom_cards: new Map(), stacks: new Map() }
 
 const SORTS: [SortKey, string][] = [
   ['relevance', 'Best match'],
@@ -36,14 +43,27 @@ export function SearchPage({ searcher, prices }: Props) {
   // Filtering 14k cards is fast, but keep typing smooth on slow phones.
   const deferred = useDeferredValue(query)
   const cardPrice = useMemo(() => (prices ? (id: number) => prices.card[id] : undefined), [prices])
-  const results = useMemo(() => searcher.search(deferred, cardPrice), [searcher, deferred, cardPrice])
+  // The collection being viewed (yours, or a public profile's), if any.
+  const coll = useContext(CollectionContext)
+  const collection = useCollection(coll?.store ?? NO_STORE)
+  const owned = useMemo(() => (coll ? ownedIndex(collection) : undefined), [coll, collection])
+  const ownedSet = useMemo(() => (owned ? new Set(owned.keys()) : undefined), [owned])
+  const addTo = params.get('add') ?? undefined
+  const [adding, setAdding] = useState<YgoCard>()
+  const canAdd = !!coll && !coll.readOnly
+  const results = useMemo(() => searcher.search(deferred, cardPrice, ownedSet), [searcher, deferred, cardPrice, ownedSet])
   // "Show more" pages reset whenever the search changes.
   const queryKey = toParams(deferred).toString()
   const [page, setPage] = useState({ key: queryKey, limit: PAGE })
   const limit = page.key === queryKey ? page.limit : PAGE
   const setLimit = (n: number) => setPage({ key: queryKey, limit: n })
 
-  const update = (next: YgoQuery, typing = false) => setParams(toParams(next), { replace: typing })
+  // Keeps the page's own parameters (which view, adding to which group) across searches.
+  const update = (next: YgoQuery, typing = false) => {
+    const p = toParams(next)
+    for (const k of KEEP) if (params.get(k)) p.set(k, params.get(k)!)
+    setParams(p, { replace: typing })
+  }
   const open = (id: number) => {
     const p = new URLSearchParams(params)
     p.set('card', String(id))
@@ -67,6 +87,10 @@ export function SearchPage({ searcher, prices }: Props) {
         }}
         onShowRelated={(id) => update({ ...emptyQuery(), related: id })}
         onArchetype={(archetype) => update({ ...emptyQuery(), archetype })}
+        owned={coll ? owned?.get(card.id) ?? [] : undefined}
+        locationOf={(groupId) => groupPath(collection, groupId)}
+        onAdd={canAdd ? () => setAdding(card) : undefined}
+        addDialog={adding && <AddCardDialog card={adding} initialGroup={addTo} onClose={() => setAdding(undefined)} />}
       />
     )
 
@@ -87,7 +111,21 @@ export function SearchPage({ searcher, prices }: Props) {
         <button type="button" className={showFilters ? 'chip on' : 'chip'} aria-expanded={showFilters} onClick={() => setShowFilters(!showFilters)}>
           Advanced{advanced ? ` (${advanced})` : ''}
         </button>
+        {coll && (
+          <label className="toggle" title="Only cards in this collection">
+            <input type="checkbox" checked={query.mine} onChange={(e) => update({ ...query, mine: e.target.checked })} />{' '}
+            {coll.readOnly ? `Only ${coll.owner.username}'s cards` : 'Only my cards'}
+          </label>
+        )}
       </form>
+      {addTo && collection.groups.get(addTo) && (
+        <p className="bulkbar">
+          Adding cards to <strong>{groupPath(collection, addTo)}</strong>: use + on any card.
+          <button type="button" className="link" onClick={() => setParams(new URLSearchParams({ view: 'collection', g: addTo }))}>
+            Done
+          </button>
+        </p>
+      )}
 
       {cardId && !card && <p className="error">No card with passcode {cardId}.</p>}
 
@@ -128,12 +166,18 @@ export function SearchPage({ searcher, prices }: Props) {
 
       <ul className="results">
         {results.slice(0, limit).map((c) => (
-          <li key={c.id}>
+          <li key={c.id} className={canAdd ? 'row-with-check' : undefined}>
+            {canAdd && (
+              <button type="button" className="add-btn" aria-label={`Add ${c.n}`} title="Add to collection" onClick={() => setAdding(c)}>
+                +
+              </button>
+            )}
             <button type="button" className="result" onClick={() => open(c.id)}>
               <span className="name">
                 {c.n}
                 {c.ban && <span className={`badge ban-${c.ban.toLowerCase()}`}>{c.ban}</span>}
                 {c.gp > 0 && <span className="badge gp">{c.gp} GP</span>}
+                {owned?.get(c.id) && <span className="badge owned">{owned.get(c.id)!.reduce((n, s) => n + s.qty, 0)} owned</span>}
               </span>
               <span className="meta">{summary(c)}</span>
               <span className="side">
@@ -149,6 +193,7 @@ export function SearchPage({ searcher, prices }: Props) {
           Show more ({(results.length - limit).toLocaleString()} left)
         </button>
       )}
+      {adding && <AddCardDialog card={adding} initialGroup={addTo} onClose={() => setAdding(undefined)} />}
     </>
   )
 }

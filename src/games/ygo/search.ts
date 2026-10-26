@@ -31,7 +31,8 @@ export interface Searcher {
   races: string[]
   /** Cards related to `id`: same archetype, archetypes its text names, cards it names, cards that name it. */
   related(id: number): YgoCard[]
-  search(query: YgoQuery, cardPrice?: (id: number) => number | undefined): YgoCard[]
+  /** `owned`: passcodes in the viewed collection, used by the "only my cards" filter. */
+  search(query: YgoQuery, cardPrice?: (id: number) => number | undefined, owned?: Set<number>): YgoCard[]
 }
 
 export function createSearcher(cards: YgoCard[]): Searcher {
@@ -66,7 +67,7 @@ export function createSearcher(cards: YgoCard[]): Searcher {
     return [...out]
   }
 
-  function search(query: YgoQuery, cardPrice?: (id: number) => number | undefined): YgoCard[] {
+  function search(query: YgoQuery, cardPrice?: (id: number) => number | undefined, owned?: Set<number>): YgoCard[] {
     const q = query.q.trim()
     const nq = normalize(q)
     // Relevance: 0 exact name, 1 name starts with the query, 2 other match; fuzzy uses its own score.
@@ -107,8 +108,10 @@ export function createSearcher(cards: YgoCard[]): Searcher {
     const set = query.set.trim().toLowerCase()
     const races = new Set(query.races)
     const result = pool.filter((c) => {
+      if (query.mine && !owned?.has(c.id)) return false
       const kind = kindOf(c)
-      if (!query.ocg && !c.tcg) return false
+      // OCG-only cards still show when you own them
+      if (!query.ocg && !c.tcg && !owned?.has(c.id)) return false
       if (query.frames.length && !query.frames.some((f) => c.tl?.includes(f))) return false
       if (query.abilities.length && !query.abilities.every((a) => c.tl?.includes(a))) return false
       // A Spell/Trap subtype narrows its own kind. With only Spell subtypes chosen, Traps and Monsters drop out

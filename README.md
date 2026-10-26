@@ -24,7 +24,8 @@ npm run build:data   # downloads card data into public/data/ (about 12 MB; not c
 npm run dev          # http://localhost:5173
 ```
 
-Checks: `npm run typecheck`, `npm run lint`, `npm run build`.
+Checks: `npm test` (search, collection model, and the SQL migrations run in PGlite), `npm run typecheck`,
+`npm run lint`, `npm run build`.
 
 If `npm install` fails with `Cannot read properties of null (reading 'edgesOut')`, that's a bug in npm 10.8; use
 `npx -y npm@11 install` instead.
@@ -64,10 +65,18 @@ fetch. For local experiments, `TCGCSV_MAX_GROUPS=40 npm run build:data` prices o
 
 1. Create a free account at https://supabase.com and a new project (any name; pick the region nearest you; save the
    database password in a password manager).
-2. **SQL Editor**: run each file in `supabase/migrations/` in order.
-3. **Project Settings → API**: copy the project URL and the public anon (publishable) key.
-4. In GitHub: **Settings → Secrets and variables → Actions → New repository secret**: add `SUPABASE_URL` and
-   `SUPABASE_ANON_KEY`. The daily job then pings the project so the free tier never pauses it.
+2. **SQL Editor**: run each file in `supabase/migrations/` in order (each only once).
+3. **Authentication → Sign In / Providers → Email**: turn off **Confirm email** (sign-ups already need an invite, and
+   the free tier sends only a few emails an hour). **Authentication → URL Configuration**: set **Site URL** to the
+   GitHub Pages address (e.g. `https://<user>.github.io/<repo>/`) and add it under Redirect URLs.
+4. **First account:** in the SQL editor run `insert into public.invites (code) values ('<pick-a-code>');`, sign up in
+   the app with that code, then run `update public.profiles set is_admin = true where username = '<you>';`. Admins
+   create invite links for others under Account.
+5. **Project Settings → API**: copy the project URL and the public anon (publishable) key.
+6. In GitHub: **Settings → Secrets and variables → Actions → New repository secret**: add `SUPABASE_URL` and
+   `SUPABASE_ANON_KEY`. The build passes them to the app, and the daily job pings the project so the free tier never
+   pauses it. For local development put the same two values in `.env.local` as `VITE_SUPABASE_URL` and
+   `VITE_SUPABASE_ANON_KEY` (gitignored).
 
 The anon key is designed to be public (it ships in the web app); access is controlled by Row Level Security. Never put
 the `service_role` key in the app or in this repo.

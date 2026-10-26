@@ -92,6 +92,13 @@ describe('filters', () => {
   })
 })
 
+describe('collection filter', () => {
+  it('only my cards; OCG-only cards show when owned', () => {
+    const owned = new Set([14558127, 99999999])
+    expect(names(s.search(q({ mine: true, sort: 'name' }), undefined, owned))).toEqual(['Ash Blossom & Joyous Spring', 'OCG Only Monster'])
+  })
+})
+
 describe('related cards and sorting', () => {
   it('related = same archetype plus mentions both ways', () => {
     expect(names(s.related(46986414))).toEqual(['Dark Magician Girl'])

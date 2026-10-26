@@ -37,6 +37,8 @@ export interface YgoQuery {
   ban: string[]
   /** Include OCG-only cards. Off by default (TCG collections). */
   ocg: boolean
+  /** Only cards in the collection being viewed. */
+  mine: boolean
   /** Show cards related to this passcode (same archetype, mentions either way). */
   related?: number
   sort: SortKey
@@ -68,6 +70,7 @@ export const emptyQuery = (): YgoQuery => ({
   set: '',
   ban: [],
   ocg: false,
+  mine: false,
   sort: 'relevance',
   desc: false,
 })
@@ -114,6 +117,7 @@ export function toParams(query: YgoQuery): URLSearchParams {
     if (v) p.set(key, v)
   }
   if (query.ocg) p.set('ocg', '1')
+  if (query.mine) p.set('mine', '1')
   if (query.related !== undefined) p.set('related', String(query.related))
   if (query.sort !== 'relevance') p.set('sort', query.sort)
   if (query.desc) p.set('desc', '1')
@@ -128,6 +132,7 @@ export function fromParams(p: URLSearchParams): YgoQuery {
     query[field as keyof typeof LISTS] = (p.get(key) ?? '').split(',').filter(Boolean)
   for (const [field, key] of Object.entries(RANGES)) query[field as keyof typeof RANGES] = parseRange(p.get(key))
   query.ocg = p.get('ocg') === '1'
+  query.mine = p.get('mine') === '1'
   const related = Number(p.get('related'))
   if (p.get('related') && Number.isInteger(related)) query.related = related
   const sort = p.get('sort') as SortKey | null
@@ -141,7 +146,7 @@ export function advancedCount(query: YgoQuery): number {
   const e = emptyQuery()
   let n = 0
   for (const k of Object.keys(e) as (keyof YgoQuery)[]) {
-    if (k === 'q' || k === 'fuzzy' || k === 'sort' || k === 'desc' || k === 'related') continue
+    if (k === 'q' || k === 'fuzzy' || k === 'sort' || k === 'desc' || k === 'related' || k === 'mine') continue
     if (JSON.stringify(query[k]) !== JSON.stringify(e[k])) n++
   }
   return n
