@@ -19,6 +19,7 @@ import {
 import { lfList } from '../../games/ygo/decks.ts'
 import type { Searcher } from '../../games/ygo/search.ts'
 import { AskDialog } from './WhoHasIt.tsx'
+import { QtyInput, validQty } from '../QtyInput.tsx'
 
 type Tab = 'friends' | 'requests' | 'trades' | 'wants'
 
@@ -244,6 +245,7 @@ function Wants({ searcher, ownerId }: { searcher: Searcher; ownerId: string }) {
   const [wants, setWants] = useState<Want[]>([])
   const [error, setError] = useState<string>()
   const [copied, setCopied] = useState(false)
+  const [edits, setEdits] = useState<Map<string, number | null>>(new Map())
   const load = useCallback(() => wantsOf(ownerId).then(setWants, (e: Error) => setError(e.message)), [ownerId])
   useEffect(() => void load(), [load])
   const text = lfList(wants.map((w) => ({ name: name(searcher, w.card_key), qty: w.qty })))
@@ -254,13 +256,17 @@ function Wants({ searcher, ownerId }: { searcher: Searcher; ownerId: string }) {
       <ul className="results">
         {wants.map((w) => (
           <li key={w.card_key} className="friend-row">
-            <input
-              type="number"
+            <QtyInput
               className="qty-input"
-              min={1}
               max={99}
-              value={w.qty}
-              onChange={(e) => setWant(w.card_key, Math.max(1, Number(e.target.value) || 1), w.note).then(load)}
+              value={edits.has(w.card_key) ? edits.get(w.card_key)! : w.qty}
+              onChange={(n) => setEdits(new Map(edits).set(w.card_key, n))}
+              // saved when you leave the box, and only if it's a valid number
+              onBlur={() => {
+                const n = edits.get(w.card_key)
+                setEdits((m) => (m.delete(w.card_key), new Map(m)))
+                if (validQty(n, 99) && n !== w.qty) void setWant(w.card_key, n, w.note).then(load)
+              }}
             />
             <a href={`?view=search&card=${w.card_key}`}>{name(searcher, w.card_key)}</a>
             <button type="button" className="link small" onClick={() => removeWant(w.card_key).then(load)}>

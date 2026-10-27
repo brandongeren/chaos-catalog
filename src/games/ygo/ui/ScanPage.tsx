@@ -3,6 +3,7 @@ import { groupPath, uuid } from '../../../core/collection/model.ts'
 import { change, useCollection, useCollectionContext } from '../../../ui/collection/context.ts'
 import { GroupSelect } from '../../../ui/collection/dialogs.tsx'
 import { codeIndex, findCards, ocrWords, type Detection } from '../scan.ts'
+import { QtyInput, validQty } from '../../../ui/QtyInput.tsx'
 import type { Searcher } from '../search.ts'
 
 interface Row {
@@ -10,7 +11,7 @@ interface Row {
   detection: Detection
   approved: boolean
   rarity: string
-  qty: number
+  qty: number | null
 }
 
 /** Photograph cards laid out flat; their set codes are read on the device and listed for you to confirm. */
@@ -47,7 +48,8 @@ export function ScanPage({ searcher }: { searcher: Searcher }) {
   const update = (id: string, patch: Partial<Row>) => setRows((r) => r.map((x) => (x.id === id ? { ...x, ...patch } : x)))
   const approved = rows.filter((r) => r.approved)
   const manual = rows.filter((r) => !r.approved)
-  const total = approved.reduce((n, r) => n + r.qty, 0)
+  const total = approved.reduce((n, r) => n + (r.qty ?? 0), 0)
+  const allValid = approved.every((r) => validQty(r.qty, 99))
 
   const add = async () => {
     if (!c.groups.has(groupId)) return setError('Choose a group to put them in')
@@ -57,7 +59,7 @@ export function ScanPage({ searcher }: { searcher: Searcher }) {
         d.add(
           {
             card_key: String(r.detection.card.id),
-            qty: r.qty,
+            qty: r.qty ?? 0,
             details: r.detection.kind === 'set-code' ? { set_code: r.detection.code, rarity: r.rarity || null } : {},
           },
           groupId,
@@ -92,7 +94,7 @@ export function ScanPage({ searcher }: { searcher: Searcher }) {
               <li key={r.id} className="row-with-check">
                 <input type="checkbox" aria-label="Approve" checked={r.approved} onChange={(e) => update(r.id, { approved: e.target.checked })} />
                 <div className="stack-row">
-                  <input type="number" min={1} max={99} className="qty-input" value={r.qty} onChange={(e) => update(r.id, { qty: Math.max(1, Number(e.target.value) || 1) })} />
+                  <QtyInput max={99} className="qty-input" value={r.qty} onChange={(n) => update(r.id, { qty: n })} />
                   <span className="stack-main">
                     <span className="name">{r.detection.card.n}</span>
                     <span className="meta">
@@ -117,7 +119,7 @@ export function ScanPage({ searcher }: { searcher: Searcher }) {
             <label>
               Put {total} approved cards into: <GroupSelect value={c.groups.has(groupId) ? groupId : ''} onChange={setGroupId} />
             </label>
-            <button type="button" className="primary" disabled={!approved.length} onClick={add}>
+            <button type="button" className="primary" disabled={!approved.length || !allValid} onClick={add}>
               Add
             </button>
             <button type="button" className="link" onClick={() => setRows([])}>

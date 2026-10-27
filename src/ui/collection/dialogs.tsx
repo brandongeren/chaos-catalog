@@ -19,6 +19,7 @@ import { deletePhoto, uploadPhoto } from '../../core/photos.ts'
 import { photoUrl } from '../../core/supabase.ts'
 import type { YgoCard } from '../../games/ygo/types.ts'
 import { Modal } from '../Modal.tsx'
+import { QtyInput } from '../QtyInput.tsx'
 import { LANGUAGES } from './labels.ts'
 import { change, nameOfStack, useCollection, useCollectionContext } from './context.ts'
 
@@ -60,11 +61,11 @@ export function GroupSelect({ value, onChange, exclude }: { value: string; onCha
   )
 }
 
-function Qty({ max, value, onChange }: { max: number; value: number; onChange: (n: number) => void }) {
+function Qty({ max, value, onChange }: { max: number; value: number | null; onChange: (n: number | null) => void }) {
   return (
     <label className="field">
       <span>How many{max > 1 ? ` (of ${max})` : ''}</span>
-      <input type="number" min={1} max={max} required value={value} onChange={(e) => onChange(Math.max(1, Math.min(max, Number(e.target.value) || 1)))} />
+      <QtyInput max={max} value={value} onChange={onChange} />
     </label>
   )
 }
@@ -212,13 +213,13 @@ export function AddCardDialog({ card, onClose, initialGroup }: { card: YgoCard; 
   const c = useCollection(ctx.store)
   const fallback = [...c.groups.values()].find((g) => g.kind === 'holding')?.id ?? ''
   const [groupId, setGroupId] = useState(initialGroup ?? localStorage.getItem('lastGroup') ?? fallback)
-  const [qty, setQty] = useState(1)
+  const [qty, setQty] = useState<number | null>(1)
   const [details, setDetails] = useState<Details>({ set_code: null, rarity: null, edition: null, language: 'en', condition: null, note: '' })
   const [availability, setAvailability] = useState<Availability>('none')
   const [section, setSection] = useState<Section>(defaultSection(card))
   const { busy, error, submit } = useSubmit(onClose)
   const target = c.groups.get(groupId)
-  const suggestions = suggestPlaces(c, qty)
+  const suggestions = suggestPlaces(c, qty ?? 1)
   return (
     <Modal title={`Add ${card.n}`} onClose={onClose}>
       <form
@@ -226,8 +227,8 @@ export function AddCardDialog({ card, onClose, initialGroup }: { card: YgoCard; 
         onSubmit={submit(async () => {
           if (!c.groups.has(groupId)) return 'Choose a group'
           localStorage.setItem('lastGroup', groupId)
-          return change(ctx, 'add', `Added ${qty}× ${card.n} to ${groupPath(c, groupId)}`, (d) =>
-            d.add({ card_key: String(card.id), qty, details, availability, section }, groupId),
+          return change(ctx, 'add', `Added ${qty ?? 0}× ${card.n} to ${groupPath(c, groupId)}`, (d) =>
+            d.add({ card_key: String(card.id), qty: qty ?? 0, details, availability, section }, groupId),
           )
         })}
       >
@@ -237,7 +238,7 @@ export function AddCardDialog({ card, onClose, initialGroup }: { card: YgoCard; 
         </label>
         {suggestions.length > 0 && (
           <p className="small">
-            Room for {qty}:{' '}
+            Room for {qty ?? 1}:{' '}
             {suggestions.map((s) => (
               <button key={s.group.id} type="button" className={groupId === s.group.id ? 'chip on' : 'chip'} onClick={() => setGroupId(s.group.id)}>
                 {groupPath(c, s.group.id)} ({s.free} free)
@@ -247,7 +248,7 @@ export function AddCardDialog({ card, onClose, initialGroup }: { card: YgoCard; 
         )}
         <label className="field">
           <span>How many</span>
-          <input type="number" min={1} max={999} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} />
+          <QtyInput max={999} value={qty} onChange={setQty} />
         </label>
         {target?.kind === 'deck' && <SectionSelect value={section} onChange={setSection} />}
         <DetailsFields card={card} value={details} onChange={setDetails} />
@@ -270,7 +271,7 @@ export function AddCardDialog({ card, onClose, initialGroup }: { card: YgoCard; 
 export function MoveDialog({ stack, onClose }: { stack: Stack; onClose: () => void }) {
   const ctx = useCollectionContext()
   const c = useCollection(ctx.store)
-  const [qty, setQty] = useState(stack.qty)
+  const [qty, setQty] = useState<number | null>(stack.qty)
   const [to, setTo] = useState('')
   const card = stack.card_key ? ctx.searcher.byId.get(Number(stack.card_key)) : undefined
   const [section, setSection] = useState<Section>(stack.section ?? defaultSection(card))
@@ -281,8 +282,8 @@ export function MoveDialog({ stack, onClose }: { stack: Stack; onClose: () => vo
       <form
         className="stack-form"
         onSubmit={submit(() =>
-          change(ctx, 'move', `Moved ${qty}× ${name} from ${groupPath(c, stack.group_id)} to ${groupPath(c, to)}`, (d) =>
-            d.move(stack.id, qty, to, section),
+          change(ctx, 'move', `Moved ${qty ?? 0}× ${name} from ${groupPath(c, stack.group_id)} to ${groupPath(c, to)}`, (d) =>
+            d.move(stack.id, qty ?? 0, to, section),
           ),
         )}
       >
@@ -303,7 +304,7 @@ export function EditStackDialog({ stack, onClose }: { stack: Stack; onClose: () 
   const ctx = useCollectionContext()
   const c = useCollection(ctx.store)
   const card = stack.card_key ? ctx.searcher.byId.get(Number(stack.card_key)) : undefined
-  const [qty, setQty] = useState(stack.qty)
+  const [qty, setQty] = useState<number | null>(stack.qty)
   const [details, setDetails] = useState<Details>({
     set_code: stack.set_code,
     rarity: stack.rarity,
@@ -322,8 +323,8 @@ export function EditStackDialog({ stack, onClose }: { stack: Stack; onClose: () 
       <form
         className="stack-form"
         onSubmit={submit(() =>
-          change(ctx, 'edit', `Edited ${qty}× ${name} in ${groupPath(c, stack.group_id)}`, (d) =>
-            d.edit(stack.id, qty, { ...details, availability, ...(isDeck ? { section } : {}) }),
+          change(ctx, 'edit', `Edited ${qty ?? 0}× ${name} in ${groupPath(c, stack.group_id)}`, (d) =>
+            d.edit(stack.id, qty ?? 0, { ...details, availability, ...(isDeck ? { section } : {}) }),
           ),
         )}
       >
@@ -350,7 +351,7 @@ export function EditStackDialog({ stack, onClose }: { stack: Stack; onClose: () 
 export function RemoveDialog({ stack, onClose }: { stack: Stack; onClose: () => void }) {
   const ctx = useCollectionContext()
   const c = useCollection(ctx.store)
-  const [qty, setQty] = useState(stack.qty)
+  const [qty, setQty] = useState<number | null>(stack.qty)
   const { busy, error, submit } = useSubmit(onClose)
   const name = nameOfStack(ctx.searcher, c, stack)
   return (
@@ -358,7 +359,7 @@ export function RemoveDialog({ stack, onClose }: { stack: Stack; onClose: () => 
       <form
         className="stack-form"
         onSubmit={submit(() =>
-          change(ctx, 'remove', `Removed ${qty}× ${name} from ${groupPath(c, stack.group_id)}`, (d) => d.remove(stack.id, qty)),
+          change(ctx, 'remove', `Removed ${qty ?? 0}× ${name} from ${groupPath(c, stack.group_id)}`, (d) => d.remove(stack.id, qty ?? 0)),
         )}
       >
         <p className="small">
@@ -375,12 +376,12 @@ export function RemoveDialog({ stack, onClose }: { stack: Stack; onClose: () => 
 export function SplitDialog({ stack, onClose }: { stack: Stack; onClose: () => void }) {
   const ctx = useCollectionContext()
   const c = useCollection(ctx.store)
-  const [qty, setQty] = useState(1)
+  const [qty, setQty] = useState<number | null>(1)
   const { busy, error, submit } = useSubmit(onClose)
   const name = nameOfStack(ctx.searcher, c, stack)
   return (
     <Modal title={`Split ${name}`} onClose={onClose}>
-      <form className="stack-form" onSubmit={submit(() => change(ctx, 'split', `Split ${qty}× ${name} into their own stack`, (d) => d.split(stack.id, qty)))}>
+      <form className="stack-form" onSubmit={submit(() => change(ctx, 'split', `Split ${qty ?? 0}× ${name} into their own stack`, (d) => d.split(stack.id, qty ?? 0)))}>
         <Qty max={stack.qty - 1} value={qty} onChange={setQty} />
         <Actions busy={busy} label="Split" error={error} />
       </form>
@@ -577,7 +578,7 @@ export function CustomCardDialog({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('')
   const [kind, setKindText] = useState('')
   const [notes, setNotes] = useState('')
-  const [qty, setQty] = useState(1)
+  const [qty, setQty] = useState<number | null>(1)
   const [groupId, setGroupId] = useState(localStorage.getItem('lastGroup') ?? '')
   const { busy, error, submit } = useSubmit(onClose)
   return (
@@ -585,9 +586,9 @@ export function CustomCardDialog({ onClose }: { onClose: () => void }) {
       <form
         className="stack-form"
         onSubmit={submit(() =>
-          change(ctx, 'add', `Added ${qty}× ${name} (custom) to ${groupPath(c, groupId)}`, (d) => {
+          change(ctx, 'add', `Added ${qty ?? 0}× ${name} (custom) to ${groupPath(c, groupId)}`, (d) => {
             const custom = d.createCustomCard(name, kind ? { kind } : {}, notes)
-            d.add({ custom_card_id: custom.id, qty }, groupId)
+            d.add({ custom_card_id: custom.id, qty: qty ?? 0 }, groupId)
           }),
         )}
       >
@@ -610,7 +611,7 @@ export function CustomCardDialog({ onClose }: { onClose: () => void }) {
         </label>
         <label className="field">
           <span>How many</span>
-          <input type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} />
+          <QtyInput max={999} value={qty} onChange={setQty} />
         </label>
         <Actions busy={busy} label="Add" error={error} />
       </form>
@@ -621,7 +622,7 @@ export function CustomCardDialog({ onClose }: { onClose: () => void }) {
 export function LendDialog({ stack, onClose }: { stack: Stack; onClose: () => void }) {
   const ctx = useCollectionContext()
   const c = useCollection(ctx.store)
-  const [qty, setQty] = useState(stack.qty)
+  const [qty, setQty] = useState<number | null>(stack.qty)
   const [friends, setFriends] = useState<{ id: string; username: string }[]>([])
   const [who, setWho] = useState('')
   const [due, setDue] = useState('')
@@ -636,7 +637,7 @@ export function LendDialog({ stack, onClose }: { stack: Stack; onClose: () => vo
       <form
         className="stack-form"
         onSubmit={submit(() =>
-          change(ctx, 'lend', `Lent ${qty}× ${name} to ${who.trim()}`, (d) => d.lend(stack.id, qty, { user: friend?.id ?? null, name: who, due: due || null })),
+          change(ctx, 'lend', `Lent ${qty ?? 0}× ${name} to ${who.trim()}`, (d) => d.lend(stack.id, qty ?? 0, { user: friend?.id ?? null, name: who, due: due || null })),
         )}
       >
         <p className="muted small">The cards move to "Lent out" and remember where they came from, so giving them back is one click.</p>
@@ -663,7 +664,7 @@ export function LendDialog({ stack, onClose }: { stack: Stack; onClose: () => vo
 export function GiveBackDialog({ stack, onClose }: { stack: Stack; onClose: () => void }) {
   const ctx = useCollectionContext()
   const c = useCollection(ctx.store)
-  const [qty, setQty] = useState(stack.qty)
+  const [qty, setQty] = useState<number | null>(stack.qty)
   const home = stack.lent_from_group && c.groups.has(stack.lent_from_group) ? stack.lent_from_group : ''
   const [to, setTo] = useState(home)
   const { busy, error, submit } = useSubmit(onClose)
@@ -672,7 +673,7 @@ export function GiveBackDialog({ stack, onClose }: { stack: Stack; onClose: () =
     <Modal title={`${stack.lent_to_name} gave back ${name}`} onClose={onClose}>
       <form
         className="stack-form"
-        onSubmit={submit(() => change(ctx, 'return', `${stack.lent_to_name} gave back ${qty}× ${name}`, (d) => d.giveBack(stack.id, qty, to || undefined)))}
+        onSubmit={submit(() => change(ctx, 'return', `${stack.lent_to_name} gave back ${qty ?? 0}× ${name}`, (d) => d.giveBack(stack.id, qty ?? 0, to || undefined)))}
       >
         <Qty max={stack.qty} value={qty} onChange={setQty} />
         <label className="field">

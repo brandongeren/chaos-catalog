@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { sendRequest, whoHas, type Holder } from '../../core/social.ts'
 import { Modal } from '../Modal.tsx'
+import { QtyInput } from '../QtyInput.tsx'
 
 /** For cards you're missing: which friends and locals have copies, and a way to ask them. */
 export function WhoHasIt({ cards }: { cards: { card_key: string; name: string; qty: number }[] }) {
@@ -65,7 +66,7 @@ export function WhoHasIt({ cards }: { cards: { card_key: string; name: string; q
 
 export function AskDialog({ holder, name, qty, onClose }: { holder: Pick<Holder, 'user_id' | 'username' | 'card_key' | 'availability'>; name: string; qty: number; onClose: (sent?: string) => void }) {
   const [kind, setKind] = useState<'borrow' | 'trade'>(holder.availability === 'trade' ? 'trade' : 'borrow')
-  const [n, setN] = useState(qty)
+  const [n, setN] = useState<number | null>(qty)
   const [message, setMessage] = useState('')
   const [error, setError] = useState<string>()
   return (
@@ -75,7 +76,7 @@ export function AskDialog({ holder, name, qty, onClose }: { holder: Pick<Holder,
         onSubmit={async (e) => {
           e.preventDefault()
           try {
-            await sendRequest({ to_user: holder.user_id, kind, card_key: holder.card_key, qty: n, message })
+            await sendRequest({ to_user: holder.user_id, kind, card_key: holder.card_key, qty: n ?? 1, message })
             onClose(`Asked ${holder.username}. You'll see the answer under Friends → Requests.`)
           } catch (err) {
             setError((err as Error).message)
@@ -91,7 +92,7 @@ export function AskDialog({ holder, name, qty, onClose }: { holder: Pick<Holder,
         </label>
         <label className="field">
           <span>How many</span>
-          <input type="number" min={1} max={99} value={n} onChange={(e) => setN(Math.max(1, Number(e.target.value) || 1))} />
+          <QtyInput max={99} value={n} onChange={setN} />
         </label>
         <label className="field">
           <span>Message (optional)</span>

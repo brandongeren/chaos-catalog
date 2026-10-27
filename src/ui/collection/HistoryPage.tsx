@@ -4,6 +4,7 @@ import type { OpRecord } from '../../core/collection/store.ts'
 import { Modal } from '../Modal.tsx'
 import { change, useCollection, useCollectionContext } from './context.ts'
 import { GroupSelect } from './dialogs.tsx'
+import { QtyInput, validQty } from '../QtyInput.tsx'
 import { languageName } from './labels.ts'
 
 const lineKey = (op: OpRecord, i: number) => `${op.id}:${i}`
@@ -16,7 +17,7 @@ export function HistoryPage() {
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string>()
   const [picked, setPicked] = useState<Map<string, CardLine>>(new Map())
-  const [qty, setQty] = useState<Map<string, number>>(new Map())
+  const [qty, setQty] = useState<Map<string, number | null>>(new Map())
   const [putBack, setPutBack] = useState(false)
 
   const more = useCallback(
@@ -48,7 +49,9 @@ export function HistoryPage() {
       op.summary.cards?.forEach((l, i) => n.set(lineKey(op, i), l))
       return n
     })
-  const total = [...picked.entries()].reduce((n, [k, l]) => n + (qty.get(k) ?? l.qty), 0)
+  const qtyOf = (k: string, l: CardLine) => (qty.has(k) ? qty.get(k)! : l.qty)
+  const total = [...picked.entries()].reduce((n, [k, l]) => n + (qtyOf(k, l) ?? 0), 0)
+  const allValid = [...picked.entries()].every(([k, l]) => validQty(qtyOf(k, l), l.qty))
 
   if (ctx.readOnly) return <p className="muted">History is private.</p>
 
@@ -62,9 +65,10 @@ export function HistoryPage() {
       {picked.size > 0 && (
         <div className="bulkbar">
           {total} cards ticked
-          <button type="button" className="chip" onClick={() => setPutBack(true)}>
+          <button type="button" className="chip" disabled={!allValid} onClick={() => setPutBack(true)}>
             Put into a group…
           </button>
+          {!allValid && <span className="error small">Fill in how many for each ticked card</span>}
           <button type="button" className="link" onClick={() => setPicked(new Map())}>
             Clear
           </button>
@@ -88,13 +92,11 @@ export function HistoryPage() {
                         <label className="check">
                           <input type="checkbox" checked={picked.has(key)} onChange={() => toggle(key, l)} />
                           {picked.has(key) && l.qty > 1 ? (
-                            <input
-                              type="number"
+                            <QtyInput
                               className="qty-input"
-                              min={1}
                               max={l.qty}
-                              value={qty.get(key) ?? l.qty}
-                              onChange={(e) => setQty(new Map(qty).set(key, Math.max(1, Math.min(l.qty, Number(e.target.value) || 1))))}
+                              value={qty.has(key) ? qty.get(key)! : l.qty}
+                              onChange={(n) => setQty(new Map(qty).set(key, n))}
                             />
                           ) : (
                             <span>{l.qty}×</span>
@@ -130,7 +132,7 @@ export function HistoryPage() {
       )}
       {putBack && (
         <PutBackDialog
-          lines={[...picked.entries()].map(([k, l]) => ({ ...l, qty: qty.get(k) ?? l.qty }))}
+          lines={[...picked.entries()].map(([k, l]) => ({ ...l, qty: qtyOf(k, l) ?? 0 }))}
           onClose={(ok) => {
             setPutBack(false)
             if (ok) setPicked(new Map())
