@@ -2,7 +2,7 @@ import { summary } from '../classify.ts'
 import { printingKey } from '../keys.ts'
 import type { Searcher } from '../search.ts'
 import type { ReactNode } from 'react'
-import type { Stack } from '../../../core/collection/model.ts'
+import { availabilityTag, type Stack } from '../../../core/collection/model.ts'
 import type { YgoCard, YgoPriceDay } from '../types.ts'
 import { money } from './format.ts'
 
@@ -72,7 +72,7 @@ export function CardDetail({ card, searcher, prices, onOpen, onShowRelated, onAr
                   <strong>{s.qty}×</strong> {locationOf?.(s.group_id)}
                   <span className="muted small">
                     {' '}
-                    {[s.set_code, s.rarity, s.edition, s.condition, s.note ? `“${s.note}”` : null, s.availability !== 'none' ? `for ${s.availability}` : null].filter(Boolean).join(' · ')}
+                    {[s.set_code, s.rarity, s.edition, s.condition, s.note ? `“${s.note}”` : null, s.availability !== 'none' ? availabilityTag(s.availability) : null].filter(Boolean).join(' · ')}
                   </span>
                 </li>
               ))}

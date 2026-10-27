@@ -195,10 +195,11 @@ function Settings({
         {check('group_ordered_default', 'New groups keep cards in a set order by default')}
         <label className="field">
           <span>New cards are, unless a box or group says otherwise</span>
-          <select value={draft.default_availability ?? 'none'} onChange={(e) => setDraft({ ...draft, default_availability: e.target.value as 'none' | 'borrow' | 'trade' })}>
+          <select value={draft.default_availability ?? 'none'} onChange={(e) => setDraft({ ...draft, default_availability: e.target.value as 'none' | 'borrow' | 'trade' | 'both' })}>
             <option value="none">Not available</option>
             <option value="borrow">Available to borrow</option>
             <option value="trade">Available to trade</option>
+            <option value="both">Available to borrow and trade</option>
           </select>
         </label>
         <button className="primary">Save</button>

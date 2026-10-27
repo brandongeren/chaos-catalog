@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { childGroups, descendantsOf, groupPath, rowName, uuid, type Availability, type Box, type Collection, type Group, type Section, type Stack } from '../../core/collection/model.ts'
+import { availabilityTag, childGroups, descendantsOf, groupPath, rowName, uuid, type Availability, type Box, type Collection, type Group, type Section, type Stack } from '../../core/collection/model.ts'
 import { photoUrl } from '../../core/supabase.ts'
 import { useUrlParams } from '../../lib/useUrlParams.ts'
 import { summary } from '../../games/ygo/classify.ts'
@@ -449,18 +449,18 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
           <button type="button" className="chip" onClick={() => onDialog({ kind: 'bulk-move', stacks: visiblePicked })}>
             Move…
           </button>
-          {(['trade', 'borrow', 'none'] as Availability[]).map((a) => (
+          {(['trade', 'borrow', 'both', 'none'] as Availability[]).map((a) => (
             <button
               key={a}
               type="button"
               className="chip"
               onClick={() =>
-                run('bulk_edit', `Marked ${visiblePicked.length} stacks in ${group.name} as ${a === 'none' ? 'not available' : `available to ${a}`}`, (d) => {
+                run('bulk_edit', `Marked ${visiblePicked.length} stacks in ${group.name} as ${a === 'none' ? 'not available' : availabilityTag(a)}`, (d) => {
                   for (const s of visiblePicked) d.edit(s.id, s.qty, { availability: a })
                 })
               }
             >
-              {a === 'none' ? 'Not available' : `For ${a}`}
+              {a === 'none' ? 'Not available' : a === 'both' ? 'For both' : `For ${a}`}
             </button>
           ))}
           <button
@@ -510,7 +510,7 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
                         <button type="button" className="link name" onClick={() => openCard(s)} disabled={!card}>
                           {nameOfStack(ctx.searcher, c, s)}
                         </button>
-                        {s.availability !== 'none' && <span className="badge gp">for {s.availability}</span>}
+                        {s.availability !== 'none' && <span className="badge gp">{availabilityTag(s.availability)}</span>}
                         {s.lent_to_name && <span className="badge">lent to {s.lent_to_name}{s.lent_due ? `, due ${s.lent_due}` : ''}</span>}
                         <span className="meta">{detailText(s) || (card ? summary(card) : 'custom card')}</span>
                       </span>

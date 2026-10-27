@@ -48,6 +48,8 @@ export class CollectionStore {
   offline = false
   conflicts: Conflict[] = []
   lastSynced: string | undefined
+  /** Newest history entry this copy is known to include; lets a refresh skip the download when nothing changed. */
+  private lastOpId: number | undefined
 
   constructor(ownerId: string, readOnly: boolean) {
     this.ownerId = ownerId
@@ -91,6 +93,7 @@ export class CollectionStore {
       set(this.key('collection'), this.base),
       set(this.key('queue'), this.queue),
       set(this.key('synced'), this.lastSynced),
+      set(this.key('lastop'), this.lastOpId),
     ]).catch(() => {})
   }
 
@@ -103,15 +106,17 @@ export class CollectionStore {
   /** Shows the saved copy (and unsent changes) immediately, then syncs with the server. */
   async load() {
     if (!this.readOnly) {
-      const [base, queue, synced] = await Promise.all([
+      const [base, queue, synced, lastOp] = await Promise.all([
         get<Collection>(this.key('collection')).catch(() => undefined),
         get<Op[]>(this.key('queue')).catch(() => undefined),
         get<string>(this.key('synced')).catch(() => undefined),
+        get<number>(this.key('lastop')).catch(() => undefined),
       ])
       if (base && !this.loaded) {
         this.base = base
         this.queue = queue ?? []
         this.lastSynced = synced
+        this.lastOpId = lastOp
         this.rebuild()
         this.loaded = true
         this.emit()
@@ -134,11 +139,37 @@ export class CollectionStore {
     void this.refresh().then(() => this.flush())
   }
 
-  /** Reloads from the server and re-applies unsent changes that still fit. */
-  async refresh() {
+  /** Newest history entry for this collection (owners only; history is private). */
+  private async latestOpId(): Promise<number | undefined> {
+    const { data, error } = await requireSupabase()
+      .from('operations')
+      .select('id')
+      .eq('owner_id', this.ownerId)
+      .order('id', { ascending: false })
+      .limit(1)
+    if (error) throw new Error(error.message)
+    return (data as { id: number }[] | null)?.[0]?.id ?? 0
+  }
+
+  /**
+   * Reloads from the server and re-applies unsent changes that still fit. For your own collection it first checks
+   * the newest history entry: if this copy already includes it, nothing changed and the download is skipped (a
+   * full download of a large collection is many MB of Supabase's monthly egress).
+   */
+  async refresh(opts: { force?: boolean } = {}) {
     const sb = requireSupabase()
     const next = emptyCollection()
     try {
+      let latest: number | undefined
+      if (!this.readOnly) {
+        latest = await this.latestOpId()
+        if (!opts.force && this.loaded && latest === this.lastOpId) {
+          this.offline = false
+          this.revalidateQueue()
+          this.emit()
+          return
+        }
+      }
       for (const t of TABLES) {
         for (let from = 0; ; from += PAGE) {
           const { data, error } = await sb
@@ -156,6 +187,8 @@ export class CollectionStore {
         }
       }
       this.base = next
+      // the copy includes at least everything up to the entry seen before downloading
+      this.lastOpId = latest
       this.revalidateQueue()
       this.loaded = true
       this.offline = false
@@ -223,7 +256,9 @@ export class CollectionStore {
       }
       this.offline = false
       let rejected = false
-      for (const r of results) {
+      const ours: number[] = []
+      for (const r of results as { client_op_id: string; status: string; reason?: string; id?: number }[]) {
+        if (r.status === 'applied' && r.id) ours.push(r.id)
         const op = this.queue[0]
         if (!op || op.client_op_id !== r.client_op_id) break
         this.queue.shift()
@@ -234,13 +269,36 @@ export class CollectionStore {
         }
         this.base = applyOp(this.base, op)
       }
+      await this.advanceLastOp(ours)
       this.lastSynced = new Date().toISOString()
       await this.persist()
       this.emit()
       if (rejected) {
-        await this.refresh()
+        await this.refresh({ force: true })
         if (this.error) return
       }
+    }
+  }
+
+  /**
+   * After our own changes are saved, the copy is still complete if every history entry since lastOpId is ours;
+   * if another device slipped one in between, forget lastOpId so the next refresh downloads.
+   */
+  private async advanceLastOp(ours: number[]) {
+    if (!ours.length || this.lastOpId === undefined) return
+    const max = Math.max(...ours)
+    try {
+      const { data, error } = await requireSupabase()
+        .from('operations')
+        .select('id')
+        .eq('owner_id', this.ownerId)
+        .gt('id', this.lastOpId)
+        .lte('id', max)
+      if (error) throw new Error(error.message)
+      const mine = new Set(ours)
+      this.lastOpId = (data as { id: number }[]).every((x) => mine.has(x.id)) ? max : undefined
+    } catch {
+      this.lastOpId = undefined
     }
   }
 

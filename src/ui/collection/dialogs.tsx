@@ -47,6 +47,7 @@ const AVAILABILITY: [Availability, string][] = [
   ['none', 'Not available'],
   ['borrow', 'Available to borrow'],
   ['trade', 'Available to trade'],
+  ['both', 'Available to borrow and trade'],
 ]
 
 const KIND_LABEL: Record<GroupKind, string> = { storage: 'Storage group', deck: 'Deck', holding: 'In-between area', lent: 'Lent out' }

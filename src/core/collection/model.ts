@@ -7,7 +7,12 @@
 export type Table = 'boxes' | 'groups' | 'custom_cards' | 'stacks'
 export type GroupKind = 'storage' | 'deck' | 'holding' | 'lent'
 export type Condition = 'NM' | 'LP' | 'MP' | 'HP' | 'Damaged'
-export type Availability = 'none' | 'borrow' | 'trade'
+export type Availability = 'none' | 'borrow' | 'trade' | 'both'
+
+export const canBorrow = (a: Availability) => a === 'borrow' || a === 'both'
+export const canTrade = (a: Availability) => a === 'trade' || a === 'both'
+/** "for borrow", "for trade", "for borrow & trade" (empty for none). */
+export const availabilityTag = (a: Availability) => (a === 'both' ? 'for borrow & trade' : a === 'none' ? '' : `for ${a}`)
 export type Section = 'main' | 'extra' | 'side'
 
 export const CONDITIONS: Condition[] = ['NM', 'LP', 'MP', 'HP', 'Damaged']

@@ -37,21 +37,28 @@ const fake = {
     return { data: rows.rows[0].r, error: null }
   },
   from: (table: string) => {
-    const q = { owner: '', from: 0, to: 0 }
-    const chain = {
+    const where: string[] = []
+    const args: unknown[] = []
+    let order = 'id'
+    const run = async (offset?: number, limit?: number) => {
+      if (!online) throw offlineError()
+      const sql = `select * from public.${table}${where.length ? ' where ' + where.join(' and ') : ''} order by ${order}` +
+        (limit !== undefined ? ` limit ${limit}` : '') + (offset ? ` offset ${offset}` : '')
+      const { rows } = await asUser(() => db.query(sql, args))
+      for (const r of rows as Record<string, unknown>[]) if (r.lent_due instanceof Date) r.lent_due = r.lent_due.toISOString().slice(0, 10)
+      return { data: rows, error: null }
+    }
+    const cond = (op: string) => (c: string, v: unknown) => (args.push(v), where.push(`${c} ${op} $${args.length}`), chain)
+    const chain: any = {
       select: () => chain,
-      eq: (_c: string, v: string) => ((q.owner = v), chain),
-      order: () => chain,
-      range: async (a: number, b: number) => {
-        if (!online) throw offlineError()
-        q.from = a
-        q.to = b
-        const { rows } = await asUser(() =>
-          db.query(`select * from public.${table} where owner_id = $1 order by id offset $2 limit $3`, [q.owner, a, b - a + 1]),
-        )
-        for (const r of rows as Record<string, unknown>[]) if (r.lent_due instanceof Date) r.lent_due = r.lent_due.toISOString().slice(0, 10)
-        return { data: rows, error: null }
-      },
+      eq: cond('='),
+      gt: cond('>'),
+      lt: cond('<'),
+      lte: cond('<='),
+      order: (c: string, o?: { ascending?: boolean }) => ((order = `${c}${o?.ascending === false ? ' desc' : ''}`), chain),
+      range: (a: number, b: number) => run(a, b - a + 1),
+      limit: (n: number) => run(undefined, n),
+      then: (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => run().then(res, rej),
     }
     return chain
   },
@@ -129,9 +136,27 @@ describe('CollectionStore', () => {
     expect(final.map((x) => [x.qty, x.condition])).toEqual([[3, 'NM']])
     expect([...restarted.collection.boxes.values()].map((b) => b.name)).toEqual(['Box 1'])
 
+    // opening again with nothing changed doesn't download the collection
+    let downloads = 0
+    const realFrom = fake.from
+    fake.from = (table: string) => {
+      if (table === 'stacks') downloads++
+      return realFrom(table)
+    }
+    await restarted.refresh()
+    expect(downloads).toBe(0)
+    // a change from another device does trigger the download
+    d = new Draft(laptop.collection, nameOf)
+    d.createBox('Box 2')
+    await laptop.apply(d.finish('create', 'create'))
+    await restarted.refresh()
+    expect(downloads).toBe(1)
+    expect([...restarted.collection.boxes.values()].map((b) => b.name).sort()).toEqual(['Box 1', 'Box 2'])
+    fake.from = realFrom
+
     // and a retried op is never applied twice
     const { rows } = await db.query<{ n: number }>(`select count(*)::int as n from public.operations where owner_id = $1`, [USER])
-    expect(rows[0].n).toBe(3)
+    expect(rows[0].n).toBe(4)
     phone.dispose()
     restarted.dispose()
     laptop.dispose()

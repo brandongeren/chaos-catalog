@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { sendRequest, whoHas, type Holder } from '../../core/social.ts'
 import { Modal } from '../Modal.tsx'
+import { availabilityTag } from '../../core/collection/model.ts'
 import { QtyInput } from '../QtyInput.tsx'
 
 /** For cards you're missing: which friends and locals have copies, and a way to ask them. */
@@ -41,7 +42,7 @@ export function WhoHasIt({ cards }: { cards: { card_key: string; name: string; q
                   <span key={h.user_id + h.availability} className="holder">
                     <a href={`?view=user&u=${h.username}`}>{h.display_name || h.username}</a>
                     {h.is_friend ? ' (friend)' : h.city ? ` (${h.city})` : ''} has {h.qty}
-                    {h.availability !== 'none' ? `, for ${h.availability}` : ''}{' '}
+                    {h.availability !== 'none' ? `, ${availabilityTag(h.availability)}` : ''}{' '}
                     <button type="button" className="link" onClick={() => setAsking({ holder: h, name: c.name, qty: Math.min(c.qty, h.qty) })}>
                       ask
                     </button>

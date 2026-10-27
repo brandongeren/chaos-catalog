@@ -241,7 +241,8 @@ cards", off by default).
 - **"Who has it":** checks friends **and** users with the same city, even if they're not friends, but only cards they
   marked available, and only if their profile allows it.
 - **Borrow and trade:**
-  - Marking: none / available to borrow / available to trade, per stack.
+  - Marking: none / available to borrow / available to trade / **both** (2026-10-26, `0008`), per stack; both counts
+    for "who has it" and for trade matches.
   - **Defaults** (2026-10-26, `0007_availability_defaults.sql`): account default (Account), optional box and group
     defaults (box/group settings). New cards take the nearest: group, parent groups, box, account, else none. Cards
     already in the collection keep theirs, also when moved.
@@ -430,6 +431,13 @@ Syntax search could move earlier (after phase 1) if you want it sooner.
 - **Placeholder repair (2026-10-26):** stacks saved with a placeholder rarity ("New") get a one-click fix in the
   Collection tab when that set code now has exactly one printing YGOPRODeck didn't list (the one "New" stood for);
   otherwise the banner lists them for a manual Edit.
+
+- **Free-tier usage (checked 2026-10-26):** GitHub (public repo): Actions minutes unlimited; Pages site 13 MB of 1 GB
+  (≈100 MB once 28 price days are kept); bandwidth ≈3 MB per device per day. Supabase: the database stays far under
+  500 MB even at 70k cards (≈20 MB). **Egress (5 GB/month) was the risk**: every app open re-downloaded the whole
+  collection (≈15–20 MB at 70k cards). Since `0008`, `apply_ops()` returns op ids and the store skips the download
+  when the newest history entry is one its copy already includes (own changes are checked to be the only ones in
+  between). Read-only views of other people's collections still download fully (their history is private).
 
 ## 16. Still open
 

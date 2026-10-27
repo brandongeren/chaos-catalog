@@ -200,7 +200,7 @@ describe('apply_ops', () => {
 describe('social', () => {
   const CAROL = '00000000-0000-0000-0000-00000000000c' // same city as Bob, not a friend
   const DAVE = '00000000-0000-0000-0000-00000000000d' // stranger elsewhere
-  const addCards = async (uid: string, cards: { key: string; qty: number; availability: 'none' | 'borrow' | 'trade' }[]) => {
+  const addCards = async (uid: string, cards: { key: string; qty: number; availability: 'none' | 'borrow' | 'trade' | 'both' }[]) => {
     const c = await loadCollection(uid)
     const d = new Draft(c, () => 'card')
     const g = d.createGroup('Binder')
@@ -216,7 +216,7 @@ describe('social', () => {
     await db.exec(`update public.profiles set city = 'Seattle, WA' where username in ('bob', 'carol');
                    update public.profiles set city = 'Boise' where username = 'dave';`)
     await addCards(ALICE, [{ key: '999', qty: 1, availability: 'none' }])
-    await addCards(CAROL, [{ key: '777', qty: 2, availability: 'trade' }, { key: '888', qty: 1, availability: 'none' }])
+    await addCards(CAROL, [{ key: '777', qty: 2, availability: 'both' }, { key: '888', qty: 1, availability: 'none' }])
     await addCards(DAVE, [{ key: '777', qty: 3, availability: 'trade' }])
   })
 
@@ -235,7 +235,7 @@ describe('social', () => {
     )
     expect(rows).toEqual([
       { username: 'alice', card_key: '999', qty: 1, availability: 'none', is_friend: true },
-      { username: 'carol', card_key: '777', qty: 2, availability: 'trade', is_friend: false },
+      { username: 'carol', card_key: '777', qty: 2, availability: 'both', is_friend: false },
     ])
     // Bob can read his friend Alice's private collection directly too; Dave can't.
     expect((await rpc(BOB, `select id from public.stacks where owner_id = '${ALICE}'`)).length).toBeGreaterThan(0)

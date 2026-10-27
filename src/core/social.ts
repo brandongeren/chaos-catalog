@@ -19,7 +19,7 @@ export interface Holder {
   is_friend: boolean
   card_key: string
   qty: number
-  availability: 'none' | 'borrow' | 'trade'
+  availability: 'none' | 'borrow' | 'trade' | 'both'
 }
 
 export interface Want {
