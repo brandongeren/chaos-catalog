@@ -24,7 +24,7 @@ export interface YgoCard {
   alt?: number[]
   /** Name. */
   n: string
-  /** Other English names this card is sold under (TCGplayer's, when YGOPRODeck's is a different translation). */
+  /** Other names: earlier names of renamed cards (YGOPRODeck beta_name) and TCGplayer's when it differs. */
   an?: string[]
   /** Type line as YGOPRODeck names it, e.g. "Effect Monster", "Spell Card". */
   t: string

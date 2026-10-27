@@ -171,6 +171,10 @@ cards", off by default).
   into the same query as the filter panel. AND across keywords, commas mean "any of" within one. Draft keywords were: `t:effect a:dark atk>=2500 lv:4 r:4 link:3
   arch:"blue-eyes" o:"draw" gp>0 set:LOB rar:ur cond:nm in:box:"Box 3" avail:trade mentions:"Dark Magician"`.
   No Yu-Gi-Oh parser like this seems to exist, so we write our own, borrowing ideas from open-source Magic tools.
+- **Name search also covers** (2026-10-26): earlier names of renamed cards (YGOPRODeck `beta_name`, e.g. Kinetic Soldier
+  → Cipher Soldier, Frog the Jam → Slime Toad; 3,203 cards) and TCGplayer's English name when it differs; such
+  results say "aka …". Cards whose **archetype** matches the words come after the name matches (Artmage → Nervedo the
+  Shadebeast Power Patron), marked "<archetype> archetype". The card page lists "Also known as".
 - **Results:** each card lists every location holding it (box → row → group, quantity, details), with inline
   **Add**, **Move** and **Split** actions.
 

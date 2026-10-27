@@ -52,6 +52,7 @@ export function CardDetail({ card, searcher, prices, onOpen, onShowRelated, onAr
       </button>
       <h2>{card.n}</h2>
       <p className="muted">{summary(card)}</p>
+      {card.an?.length ? <p className="muted small">Also known as {card.an.map((n) => `“${n}”`).join(', ')}</p> : null}
       <p className="card-text">{card.d}</p>
 
       {(owned || onAdd) && (

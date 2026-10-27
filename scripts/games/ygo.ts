@@ -38,7 +38,7 @@ interface ApiCard {
   card_images?: { id: number }[]
   card_prices?: { tcgplayer_price?: string }[]
   banlist_info?: { ban_tcg?: BanStatus; ban_ocg?: BanStatus }
-  misc_info?: { tcg_date?: string; ocg_date?: string; konami_id?: number; genesys_points?: number }[]
+  misc_info?: { tcg_date?: string; ocg_date?: string; konami_id?: number; genesys_points?: number; beta_name?: string }[]
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -85,6 +85,9 @@ function toCard(c: ApiCard): YgoCard {
   if (c.linkmarkers) card.lm = c.linkmarkers
   if (c.scale !== undefined) card.sc = c.scale
   if (c.archetype) card.ar = c.archetype
+  // Earlier names (renamed cards: Cipher Soldier was "Kinetic Soldier") are searchable too.
+  if (misc.beta_name && misc.beta_name.toLowerCase().replace(/[^a-z0-9]/g, '') !== c.name.toLowerCase().replace(/[^a-z0-9]/g, ''))
+    card.an = [misc.beta_name]
   if (misc.tcg_date) card.tcg = misc.tcg_date
   if (misc.ocg_date) card.ocg = misc.ocg_date
   if (misc.konami_id) card.kid = misc.konami_id

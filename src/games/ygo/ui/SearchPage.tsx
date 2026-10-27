@@ -8,7 +8,7 @@ import { CardSocial } from '../../../ui/social/CardSocial.tsx'
 import { useUrlParams } from '../../../lib/useUrlParams.ts'
 import { releaseDate, summary } from '../classify.ts'
 import { advancedCount, emptyQuery, fromParams, toParams, type SortKey, type YgoQuery } from '../query.ts'
-import type { Searcher } from '../search.ts'
+import { normalize, type Searcher } from '../search.ts'
 import type { YgoPriceDay } from '../types.ts'
 import { CardDetail } from './CardDetail.tsx'
 import { Filters } from './Filters.tsx'
@@ -67,6 +67,15 @@ export function SearchPage({ searcher, prices }: Props) {
     [exact, deferred, syntaxOn, searcher, cardPrice, ownedSet],
   )
   const results = exact.length ? exact : suggestions
+  // Why a card matched when it isn't by its current name: an old/other name, or its archetype.
+  const words = normalize(deferred.q).split(' ').filter(Boolean)
+  const viaName = (c: YgoCard) => {
+    if (!words.length || syntaxOn || /^\d+$/.test(deferred.q.trim())) return undefined
+    const has = (s: string) => words.every((w) => normalize(s).includes(w))
+    if (has(c.n)) return undefined
+    const alias = c.an?.find(has)
+    return alias ? `aka ${alias}` : c.ar && has(c.ar) ? `${c.ar} archetype` : undefined
+  }
   // "Show more" pages reset whenever the search changes.
   const queryKey = toParams(deferred).toString()
   const [page, setPage] = useState({ key: queryKey, limit: PAGE })
@@ -235,6 +244,7 @@ export function SearchPage({ searcher, prices }: Props) {
                 {c.n}
                 {c.ban && <span className={`badge ban-${c.ban.toLowerCase()}`}>{c.ban}</span>}
                 {c.gp > 0 && <span className="badge gp">{c.gp} GP</span>}
+                {viaName(c) && <span className="muted small"> · {viaName(c)}</span>}
                 {owned?.get(c.id) && <span className="badge owned">{owned.get(c.id)!.reduce((n, s) => n + s.qty, 0)} owned</span>}
               </span>
               <span className="meta">{summary(c)}</span>

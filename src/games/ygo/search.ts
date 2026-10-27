@@ -42,6 +42,8 @@ export function createSearcher(cards: YgoCard[]): Searcher {
   const names = new Map(cards.map((c) => [c.id, normalize([c.n, ...(c.an ?? [])].join(' | '))]))
   const texts = new Map<number, string>()
   const textOf = (c: YgoCard) => texts.get(c.id) ?? (texts.set(c.id, normalize(c.d)), texts.get(c.id)!)
+  const archetypes = new Map<string, string>()
+  const archetypeOf = (c: YgoCard) => (c.ar ? (archetypes.get(c.ar) ?? archetypes.set(c.ar, normalize(c.ar)).get(c.ar)!) : '')
   const byArchetype = new Map<string, YgoCard[]>()
   for (const c of cards) if (c.ar) (byArchetype.get(c.ar) ?? byArchetype.set(c.ar, []).get(c.ar)!).push(c)
 
@@ -94,14 +96,28 @@ export function createSearcher(cards: YgoCard[]): Searcher {
             rank.set(c.id, i)
           }
         })
+        // archetype members after the name matches
+        const words = nq.split(' ')
+        for (const c of allowed)
+          if (!rank.has(c.id) && c.ar && words.every((w) => archetypeOf(c).includes(w))) {
+            pool.push(c)
+            rank.set(c.id, hits.length + 1)
+          }
       } else {
         const words = nq.split(' ')
         pool = pool.filter((c) => {
           const n = names.get(c.id)!
-          if (!words.every((w) => n.includes(w))) return false
-          const primary = normalize(c.n)
-          rank.set(c.id, primary === nq ? 0 : primary.startsWith(nq) ? 1 : 2)
-          return true
+          if (words.every((w) => n.includes(w))) {
+            const primary = normalize(c.n)
+            rank.set(c.id, primary === nq ? 0 : primary.startsWith(nq) ? 1 : 2)
+            return true
+          }
+          // Then cards of an archetype the words name, even without it in their name ("artmage" -> Nervedo).
+          if (c.ar && words.every((w) => archetypeOf(c).includes(w))) {
+            rank.set(c.id, 3)
+            return true
+          }
+          return false
         })
       }
     }

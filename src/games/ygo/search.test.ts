@@ -22,6 +22,9 @@ const CARDS: YgoCard[] = [
   card({ id: 24224830, n: 'Called by the Grave', t: 'Spell Card', f: 'spell', r: 'Quick-Play', gp: 0, ban: 'Limited', tcg: '2018-05-24' }),
   card({ id: 40605147, n: 'Solemn Strike', t: 'Trap Card', f: 'trap', r: 'Counter', tcg: '2016-02-04' }),
   card({ id: 98349765, n: 'Layer 19: "Preventing the Invasion! The Pitch-Black Super Quantum!!"', an: ['Layer 19 "Sudden Incursion! Super Quantum Black!!"'], t: 'Spell Card', f: 'spell', r: 'Normal', tcg: '2005-01-01' }),
+  card({ id: 777, n: 'Nervedo the Shadebeast Power Patron', ar: 'Artmage', tcg: '2004-01-01' }),
+  card({ id: 778, n: 'Artmage Finmel', ar: 'Artmage', tcg: '2003-01-01' }),
+  card({ id: 779, n: 'Cipher Soldier', an: ['Kinetic Soldier'], tcg: '2002-01-01' }),
   card({ id: 99999999, n: 'OCG Only Monster', tl: ['Effect'], a: 'WIND', atk: -1, def: 0, lv: 4, tcg: undefined, ocg: '2026-01-01' }),
 ]
 
@@ -44,6 +47,13 @@ describe('name search', () => {
     expect(names(s.search(q({ q: '14558127' })))).toEqual(['Ash Blossom & Joyous Spring'])
     expect(names(s.search(q({ q: '12950' })))).toEqual(['Ash Blossom & Joyous Spring'])
     expect(names(s.search(q({ q: 'dude-en003' })))).toEqual(['Ash Blossom & Joyous Spring'])
+  })
+  it('lists archetype members after name matches, also in fuzzy mode', () => {
+    expect(names(s.search(q({ q: 'artmage' })))).toEqual(['Artmage Finmel', 'Nervedo the Shadebeast Power Patron'])
+    expect(names(s.search(q({ q: 'artmage', fuzzy: true }))).at(-1)).toBe('Nervedo the Shadebeast Power Patron')
+  })
+  it('finds renamed cards by their old name', () => {
+    expect(names(s.search(q({ q: 'kinetic soldier' })))).toEqual(['Cipher Soldier'])
   })
   it('finds alternate English names', () => {
     expect(names(s.search(q({ q: 'sudden incursion' })))).toEqual(['Layer 19: "Preventing the Invasion! The Pitch-Black Super Quantum!!"'])
