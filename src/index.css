@@ -1049,3 +1049,11 @@ code {
     grid-template-columns: 2.5rem 1fr auto;
   }
 }
+
+.sync .saved {
+  transition: opacity 0.6s ease;
+}
+
+.sync .saved.fading {
+  opacity: 0;
+}
