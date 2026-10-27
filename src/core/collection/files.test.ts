@@ -12,7 +12,7 @@ function sample() {
   const g = d.createGroup('Fire, "hot" ones', { box_id: box.id, row_label: 'Row 2' })
   const deck = d.createGroup('Snake-Eye', { kind: 'deck' })
   d.add({ card_key: '1', qty: 3, details: { set_code: 'DUDE-EN003', rarity: 'Ultra Rare', condition: 'LP' }, availability: 'trade' }, g.id)
-  d.add({ card_key: '2', qty: 1 }, deck.id)
+  d.add({ card_key: '2', qty: 1, details: { note: 'misprint, "Grave" spelled "Grove"' } }, deck.id)
   const custom = d.createCustomCard('Proxy Thing', { kind: 'Proxy' })
   d.add({ custom_card_id: custom.id, qty: 2 }, g.id)
   c = applyOp(c, d.finish('setup', 'setup'))
@@ -23,7 +23,7 @@ const summarize = (c: Collection) =>
   [...c.stacks.values()]
     .map((s) => {
       const g = c.groups.get(s.group_id)!
-      return [nameOf(s) === 'Custom' ? c.custom_cards.get(s.custom_card_id!)?.name : nameOf(s), s.qty, g.name, g.row_label, g.box_id ? c.boxes.get(g.box_id)!.name : null, s.condition, s.availability, s.section].join('|')
+      return [nameOf(s) === 'Custom' ? c.custom_cards.get(s.custom_card_id!)?.name : nameOf(s), s.qty, g.name, g.row_label, g.box_id ? c.boxes.get(g.box_id)!.name : null, s.condition, s.availability, s.section, s.note].join('|')
     })
     .sort()
 

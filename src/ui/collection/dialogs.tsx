@@ -176,6 +176,15 @@ export function DetailsFields({ card, value, onChange }: { card?: YgoCard; value
           </select>
         </label>
       </div>
+      <label className="field">
+        <span>Note</span>
+        <input
+          value={value.note}
+          maxLength={500}
+          placeholder="e.g. misprint, signed by the artist"
+          onChange={(e) => onChange({ ...value, note: e.target.value })}
+        />
+      </label>
     </fieldset>
   )
 }
@@ -204,7 +213,7 @@ export function AddCardDialog({ card, onClose, initialGroup }: { card: YgoCard; 
   const fallback = [...c.groups.values()].find((g) => g.kind === 'holding')?.id ?? ''
   const [groupId, setGroupId] = useState(initialGroup ?? localStorage.getItem('lastGroup') ?? fallback)
   const [qty, setQty] = useState(1)
-  const [details, setDetails] = useState<Details>({ set_code: null, rarity: null, edition: null, language: 'en', condition: null })
+  const [details, setDetails] = useState<Details>({ set_code: null, rarity: null, edition: null, language: 'en', condition: null, note: '' })
   const [availability, setAvailability] = useState<Availability>('none')
   const [section, setSection] = useState<Section>(defaultSection(card))
   const { busy, error, submit } = useSubmit(onClose)
@@ -301,6 +310,7 @@ export function EditStackDialog({ stack, onClose }: { stack: Stack; onClose: () 
     edition: stack.edition,
     language: stack.language,
     condition: stack.condition,
+    note: stack.note ?? '',
   })
   const [availability, setAvailability] = useState(stack.availability)
   const [section, setSection] = useState<Section>(stack.section ?? 'main')

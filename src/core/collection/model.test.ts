@@ -28,6 +28,21 @@ describe('Draft', () => {
     expect(stacksIn(c, a.id).map((s) => s.qty)).toEqual([3])
   })
 
+  it('notes are details: different notes stay separate and travel with moves', () => {
+    let { c, a, b } = setup()
+    let d = new Draft(c, nameOf)
+    const signed = d.add({ card_key: '14558127', qty: 1, details: { note: 'signed' } }, a.id)
+    d.add({ card_key: '14558127', qty: 2 }, a.id)
+    c = applyOp(c, d.finish('add', 'add'))
+    expect(stacksIn(c, a.id)).toHaveLength(2)
+    d = new Draft(c, nameOf)
+    const moved = d.move(signed.id, 1, b.id)
+    const op = d.finish('move', 'move')
+    expect(op.summary.cards?.[0].details.note).toBe('signed')
+    c = applyOp(c, op)
+    expect(c.stacks.get(moved.id)?.note).toBe('signed')
+  })
+
   it('different details stay separate; ordered groups never auto-merge', () => {
     let { c, a, ordered } = setup()
     const d = new Draft(c, nameOf)

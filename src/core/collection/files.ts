@@ -87,7 +87,7 @@ export function importJsonOps(c: Collection, file: CollectionFile, nameOf: NameO
           card_key: s.card_key,
           custom_card_id: s.custom_card_id ? (ids.get(s.custom_card_id) ?? null) : null,
           qty: s.qty,
-          details: { set_code: s.set_code, rarity: s.rarity, edition: s.edition, language: s.language ?? 'en', condition: s.condition },
+          details: { set_code: s.set_code, rarity: s.rarity, edition: s.edition, language: s.language ?? 'en', condition: s.condition, note: s.note ?? '' },
           section: s.section,
           availability: s.availability,
           // loans stay loans (the borrower's account link isn't carried over)
@@ -122,6 +122,7 @@ export const CSV_COLUMNS = [
   'group_type',
   'deck_section',
   'availability',
+  'note',
 ] as const
 
 type CsvRow = Partial<Record<(typeof CSV_COLUMNS)[number], string>>
@@ -152,6 +153,7 @@ export function toCsv(c: Collection, nameOf: NameOf): string {
       group_type: g?.kind,
       deck_section: s.section,
       availability: s.availability === 'none' ? '' : s.availability,
+      note: s.note,
     }
     lines.push(CSV_COLUMNS.map((k) => quote(row[k])).join(','))
   }
@@ -273,6 +275,7 @@ export function importCsvOps(c: Collection, rows: CsvRow[], resolve: (passcode: 
             edition: r.edition || null,
             language: r.language?.toLowerCase() || 'en',
             condition,
+            note: r.note ?? '',
           },
           section,
           availability,

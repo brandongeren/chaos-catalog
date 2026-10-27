@@ -52,6 +52,8 @@ export interface Details {
   edition: string | null
   language: string
   condition: Condition | null
+  /** Free text, e.g. "misprint" or "signed". Empty when none. */
+  note: string
 }
 
 export interface Stack extends Details {
@@ -128,6 +130,7 @@ const IDENTITY: (keyof Stack)[] = [
   'edition',
   'language',
   'condition',
+  'note',
   'section',
   'availability',
   'lent_to_user',
@@ -136,7 +139,8 @@ const IDENTITY: (keyof Stack)[] = [
   'lent_from_group',
 ]
 
-export const sameCopies = (a: Stack, b: Stack) => IDENTITY.every((k) => (a[k] ?? null) === (b[k] ?? null))
+export const sameCopies = (a: Stack, b: Stack) =>
+  IDENTITY.every((k) => (k === 'note' ? (a.note ?? '') === (b.note ?? '') : (a[k] ?? null) === (b[k] ?? null)))
 
 export const detailsOf = (s: Stack): Details => ({
   set_code: s.set_code,
@@ -144,9 +148,10 @@ export const detailsOf = (s: Stack): Details => ({
   edition: s.edition,
   language: s.language,
   condition: s.condition,
+  note: s.note ?? '',
 })
 
-export const noDetails = (): Details => ({ set_code: null, rarity: null, edition: null, language: 'en', condition: null })
+export const noDetails = (): Details => ({ set_code: null, rarity: null, edition: null, language: 'en', condition: null, note: '' })
 
 export class CollectionError extends Error {}
 

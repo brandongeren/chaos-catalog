@@ -108,7 +108,7 @@ what the owner's profile allows (section 9).
 - **stacks**: identical copies in one place, with a quantity.
   - `id`, `group_id`, `game`, `card_key` or `custom_card_id`, `qty`
   - optional details: `set_code?`, `rarity?`, `edition?` (1st / Unlimited / Limited), `language` (default `en`),
-    `condition?` (NM / LP / MP / HP / Damaged)
+    `condition?` (NM / LP / MP / HP / Damaged), `note` (free text, e.g. misprint or signed; added 2026-10-26, `0005_notes.sql`)
   - `section?` (deck groups only), `position?` (ordered groups only)
   - `availability`: none / borrow / trade
   - loans: `lent_to_user?`, `lent_to_name?` (for non-users), `lent_due?`, `lent_from_group?`

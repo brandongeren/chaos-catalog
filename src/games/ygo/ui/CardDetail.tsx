@@ -71,7 +71,7 @@ export function CardDetail({ card, searcher, prices, onOpen, onShowRelated, onAr
                   <strong>{s.qty}×</strong> {locationOf?.(s.group_id)}
                   <span className="muted small">
                     {' '}
-                    {[s.set_code, s.rarity, s.edition, s.condition, s.availability !== 'none' ? `for ${s.availability}` : null].filter(Boolean).join(' · ')}
+                    {[s.set_code, s.rarity, s.edition, s.condition, s.note ? `“${s.note}”` : null, s.availability !== 'none' ? `for ${s.availability}` : null].filter(Boolean).join(' · ')}
                   </span>
                 </li>
               ))}

@@ -101,7 +101,7 @@ export function HistoryPage() {
                           )}
                           <span>{l.name}</span>
                           <span className="muted small">
-                            {[l.details.set_code, l.details.rarity, l.details.edition, l.details.condition, l.details.language !== 'en' ? languageName(l.details.language) : null]
+                            {[l.details.set_code, l.details.rarity, l.details.edition, l.details.condition, l.details.language !== 'en' ? languageName(l.details.language) : null, l.details.note ? `“${l.details.note}”` : null]
                               .filter(Boolean)
                               .join(' · ')}
                             {l.from !== undefined && ` · from ${l.from ? groupPath(c, l.from) : 'outside'}`}

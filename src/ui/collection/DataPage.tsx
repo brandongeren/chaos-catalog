@@ -84,7 +84,7 @@ export function DataPage() {
           <h3>Import</h3>
           <p className="muted small">
             Adds to your collection; nothing is deleted. CSV columns (any order, only a name or passcode is required):{' '}
-            <code>name, passcode, qty, set_code, rarity, edition, language, condition, box, row, group, group_type, deck_section, availability</code>.
+            <code>name, passcode, qty, set_code, rarity, edition, language, condition, box, row, group, group_type, deck_section, availability, note</code>.
             Boxes and groups are matched by name or created.
           </p>
           <input type="file" accept=".json,.csv,application/json,text/csv" onChange={(e) => e.target.files?.[0] && readFile(e.target.files[0])} />

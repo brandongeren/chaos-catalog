@@ -238,7 +238,7 @@ function rawDeckOf(stacks: Stack[]): RawDeck {
 }
 
 function detailText(s: Stack) {
-  return [s.set_code, s.rarity, s.edition, s.condition, s.language !== 'en' ? languageName(s.language) : null].filter(Boolean).join(' · ')
+  return [s.set_code, s.rarity, s.edition, s.condition, s.language !== 'en' ? languageName(s.language) : null, s.note ? `“${s.note}”` : null].filter(Boolean).join(' · ')
 }
 
 function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) => void }) {

@@ -237,7 +237,7 @@ export function DecksPage({ searcher, prices }: { searcher: Searcher; prices?: Y
                             return (
                               <li key={src.id} className={pick ? 'picked' : undefined}>
                                 {pick ? `take ${pick.qty} of ${src.qty}` : `${src.qty}`} · {groupPath(collection, src.group_id)}
-                                <span className="muted"> {[src.set_code, src.rarity, src.edition, src.condition].filter(Boolean).join(' · ')}</span>
+                                <span className="muted"> {[src.set_code, src.rarity, src.edition, src.condition, src.note ? `“${src.note}”` : null].filter(Boolean).join(' · ')}</span>
                               </li>
                             )
                           })}
