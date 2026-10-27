@@ -146,16 +146,16 @@ export function SearchPage({ searcher, prices }: Props) {
           />{' '}
           Syntax
         </label>
-        {!syntaxOn && (
-          <button type="button" className={showFilters ? 'chip on' : 'chip'} aria-expanded={showFilters} onClick={() => setShowFilters(!showFilters)}>
-            Advanced{advanced ? ` (${advanced})` : ''}
-          </button>
-        )}
         {coll && (
           <label className="toggle" title="Only cards in this collection">
             <input type="checkbox" checked={query.mine} onChange={(e) => update({ ...query, mine: e.target.checked })} />{' '}
             {coll.readOnly ? `Only ${coll.owner.username}'s cards` : 'Only my cards'}
           </label>
+        )}
+        {!syntaxOn && (
+          <button type="button" className={showFilters ? 'chip on' : 'chip'} aria-expanded={showFilters} onClick={() => setShowFilters(!showFilters)}>
+            Advanced{advanced ? ` (${advanced})` : ''}
+          </button>
         )}
       </form>
       {addTo && collection.groups.get(addTo) && (
