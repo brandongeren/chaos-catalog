@@ -415,6 +415,13 @@ Syntax search could move earlier (after phase 1) if you want it sooner.
   and TCGplayer's name is kept as an alternate name (`an`) that search covers. Language suffixes like
   `(German) - "…"` are stripped first. Search shows close matches when an exact name search finds nothing.
 
+- **Art variants and placeholders (2026-10-26):** TCGplayer lists overframe/extended-art, alternate-art and new-art
+  versions under the same set code and rarity as the plain card (MAMO-EN017 Ultra Rare and "(Extended Art)"), and
+  YGOPRODeck often has only a placeholder rarity "New" for them. A variant now becomes its own printing, e.g.
+  "Ultra Rare (Overframe)", with its own price, **when TCGplayer also lists the plain version**; when only the variant
+  is listed (MAMO-EN017 Starlight Rare), that listing is the printing. Placeholder rarities ("New", bare numbers) are
+  dropped where the same set code has real ones (195 dropped, 86 variants split).
+
 ## 16. Still open
 
 - OCR accuracy on real photos (foils, lighting, several cards per photo). **Tabled** until phase 9; needs sample photos.

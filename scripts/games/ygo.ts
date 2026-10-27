@@ -7,6 +7,7 @@
 import type { BanStatus, YgoCard, YgoCatalog, YgoMeta, YgoPriceDay, YgoPrinting } from '../../src/games/ygo/types.ts'
 import {
   addTcgPrintings,
+  dropPlaceholders,
   fetchPrices,
   matchProducts,
   refreshProducts,
@@ -200,6 +201,7 @@ export async function buildYgo(
     console.log(`ygo: ${Object.keys(printing).length} printings priced from ${requests} price file(s); ${collisions} duplicate listing(s)`)
   }
   console.log(`ygo: ${addTcgPrintings(products, match)} TCGplayer-only printing(s) added to the catalog`)
+  console.log(`ygo: ${dropPlaceholders(cards)} placeholder rarit(ies) like "New" dropped where real ones exist`)
 
   // Some cards are out in the TCG but YGOPRODeck has neither their TCG date nor their English printing (e.g.
   // "Artmage Pact -Awakening-", printed as DUAD-EN075, which only TCGplayer lists). Without a date they'd be hidden

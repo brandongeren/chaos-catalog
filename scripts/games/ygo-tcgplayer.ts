@@ -49,6 +49,19 @@ export async function tcgcsvDate(): Promise<string> {
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+/**
+ * A different look of the same printing, which TCGplayer lists separately under the same set code and rarity:
+ * "(Extended Art)" (overframe: the art covers the frame, e.g. MAMO-EN017 Ultra Rare), "(Alternate Art)", "(New Art)".
+ * Returned as the label used in the rarity, e.g. "Ultra Rare (Overframe)".
+ */
+export function variantOf(productName: string): string | undefined {
+  const labels = [...productName.matchAll(/\(([^()]+)\)/g)].map((m) => m[1].trim().toLowerCase())
+  if (labels.some((l) => l === 'extended art' || l === 'overframe')) return 'Overframe'
+  if (labels.some((l) => l === 'alternate art' || l === 'alt art')) return 'Alternate Art'
+  if (labels.some((l) => l === 'new art')) return 'New Art'
+  return undefined
+}
+
 /** The part of a name before its first quote or colon, normalized, if it has two or more words ("layer 19"). */
 const titleOf = (s: string) => {
   const m = /^([^":]+)["':]/.exec(s)
@@ -105,8 +118,14 @@ export function matchProducts(cards: YgoCard[], cache: ProductCache) {
       add(bySet, p.c, c)
     }
   }
+  // A variant only counts as its own printing when TCGplayer also lists the plain one (MAMO-EN017 Ultra Rare comes
+  // both ways; its Starlight Rare is only sold as "(Extended Art)", so that listing simply is the Starlight Rare).
+  const plain = new Set<string>()
+  for (const g of Object.values(cache))
+    for (const [, number, rarity, name] of g.products)
+      if (!variantOf(name) && !/misprint/i.test(name)) plain.add(`${number}|${rarity.toLowerCase()}`)
   const match = new Map<number, ProductMatch>()
-  const stats = { exact: 0, bySetCode: 0, byName: 0, byTitle: 0, unmatched: 0, misprints: 0 }
+  const stats = { exact: 0, bySetCode: 0, byName: 0, byTitle: 0, variants: 0, unmatched: 0, misprints: 0 }
   for (const g of Object.values(cache))
     for (const [productId, number, rarity, name] of g.products) {
       if (/misprint/i.test(name)) {
@@ -118,7 +137,14 @@ export function matchProducts(cards: YgoCard[], cache: ProductCache) {
         const list = [...(set ?? [])]
         return list.length === 1 ? list[0] : list.find((c) => norm(c.n) === want)
       }
+      const variant = plain.has(`${number}|${rarity.toLowerCase()}`) ? variantOf(name) : undefined
       let card = pick(bySetRarity.get(`${number}|${rarity.toLowerCase()}`))
+      if (card && variant) {
+        // same set code and rarity as the plain printing, but a different card to own and price
+        stats.variants++
+        match.set(productId, { card, number, rarity: `${rarity} (${variant})`, known: false })
+        continue
+      }
       if (card) {
         stats.exact++
         match.set(productId, { card, number, rarity: card.p!.find((p) => p.c === number && p.r.toLowerCase() === rarity.toLowerCase())!.r, known: true })
@@ -142,7 +168,7 @@ export function matchProducts(cards: YgoCard[], cache: ProductCache) {
           }
         }
       }
-      if (card) match.set(productId, { card, number, rarity, known: false })
+      if (card) match.set(productId, { card, number, rarity: variant ? `${rarity} (${variant})` : rarity, known: false })
       else stats.unmatched++
     }
   return { match, stats }
@@ -169,6 +195,21 @@ export function addTcgPrintings(cache: ProductCache, match: Map<number, ProductM
     if (tcgName && norm(tcgName) !== norm(m.card.n) && !(m.card.an ?? []).includes(tcgName)) (m.card.an ??= []).push(tcgName)
   }
   return added
+}
+
+/** YGOPRODeck's stand-in rarities for printings it hasn't filled in yet ("New", or a bare number). */
+export const isPlaceholderRarity = (r: string) => /^(new|\d+)$/i.test(r.trim())
+
+/** Drops placeholder rarities where the same set code has real ones (from YGOPRODeck or TCGplayer). */
+export function dropPlaceholders(cards: YgoCard[]) {
+  let dropped = 0
+  for (const c of cards) {
+    if (!c.p) continue
+    const before = c.p.length
+    c.p = c.p.filter((p) => !isPlaceholderRarity(p.r) || !c.p!.some((o) => o !== p && o.c === p.c && !isPlaceholderRarity(o.r)))
+    dropped += before - c.p.length
+  }
+  return dropped
 }
 
 /** Fetches the product lists that changed since `previous`, keeping the rest from the cache. */
