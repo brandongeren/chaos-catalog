@@ -206,7 +206,12 @@ export async function buildYgo(
   let dated = 0
   for (const c of cards) {
     if (c.tcg || !c.p?.length) continue
-    const dates = c.p.map((p) => setDate.get(p.c.split('-')[0])).filter((d): d is string => !!d).sort()
+    // Only TCG printings count: OCG-region codes (Japanese, Asian-English, Korean, Chinese) don't make a card TCG.
+    const dates = c.p
+      .filter((p) => !/-(JP|JA|AE|KR|TC|SC)\d/i.test(p.c))
+      .map((p) => setDate.get(p.c.split('-')[0]))
+      .filter((d): d is string => !!d)
+      .sort()
     if (dates.length) {
       c.tcg = dates[0]
       dated++
