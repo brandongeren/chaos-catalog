@@ -38,7 +38,8 @@ export interface Searcher {
 export function createSearcher(cards: YgoCard[]): Searcher {
   // Includes alternate-art passcodes, so any passcode a decklist or link uses finds the card.
   const byId = new Map(cards.flatMap((c) => [c.id, ...(c.alt ?? [])].map((id) => [id, c] as const)))
-  const names = new Map(cards.map((c) => [c.id, normalize(c.n)]))
+  // Name plus any alternate English names, so either finds the card.
+  const names = new Map(cards.map((c) => [c.id, normalize([c.n, ...(c.an ?? [])].join(' | '))]))
   const texts = new Map<number, string>()
   const textOf = (c: YgoCard) => texts.get(c.id) ?? (texts.set(c.id, normalize(c.d)), texts.get(c.id)!)
   const byArchetype = new Map<string, YgoCard[]>()
@@ -48,7 +49,7 @@ export function createSearcher(cards: YgoCard[]): Searcher {
   const fuzzy = (q: string) => {
     fuzzyIndex ??= (() => {
       const ms = new MiniSearch({ fields: ['n'], storeFields: [], idField: 'id' })
-      ms.addAll(cards.map((c) => ({ id: c.id, n: c.n })))
+      ms.addAll(cards.map((c) => ({ id: c.id, n: [c.n, ...(c.an ?? [])].join(' ') })))
       return ms
     })()
     return fuzzyIndex.search(q, { fuzzy: 0.25, prefix: true, combineWith: 'AND' })
@@ -98,7 +99,8 @@ export function createSearcher(cards: YgoCard[]): Searcher {
         pool = pool.filter((c) => {
           const n = names.get(c.id)!
           if (!words.every((w) => n.includes(w))) return false
-          rank.set(c.id, n === nq ? 0 : n.startsWith(nq) ? 1 : 2)
+          const primary = normalize(c.n)
+          rank.set(c.id, primary === nq ? 0 : primary.startsWith(nq) ? 1 : 2)
           return true
         })
       }

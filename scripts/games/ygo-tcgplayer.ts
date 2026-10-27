@@ -49,8 +49,18 @@ export async function tcgcsvDate(): Promise<string> {
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+/** The part of a name before its first quote or colon, normalized, if it has two or more words ("layer 19"). */
+const titleOf = (s: string) => {
+  const m = /^([^":]+)["':]/.exec(s)
+  const head = m ? norm(m[1]).trim() : ''
+  return m && m[1].trim().split(/\s+/).length >= 2 ? head : ''
+}
+
 /** "Dark Magician (New Art) (Quarter Century Secret Rare)" -> "Dark Magician". */
-const baseName = (s: string) => s.replace(/(\s*\([^()]*\))+$/, '')
+const baseName = (s: string) =>
+  s
+    .replace(/\s*\((German|French|Italian|Spanish|Portuguese)\)\s*-\s*".*"$/i, '') // `X (German) - "Y"`
+    .replace(/(\s*\([^()]*\))+$/, '')
 
 interface ApiProduct {
   productId: number
@@ -83,6 +93,11 @@ export function matchProducts(cards: YgoCard[], cache: ProductCache) {
   const bySet = new Map<string, Set<YgoCard>>()
   const byName = new Map<string, YgoCard[]>()
   const add = <K>(m: Map<K, Set<YgoCard>>, k: K, c: YgoCard) => (m.get(k) ?? m.set(k, new Set()).get(k)!).add(c)
+  const byTitle = new Map<string, YgoCard[]>()
+  for (const c of cards) {
+    const head = titleOf(c.n)
+    if (head) (byTitle.get(head) ?? byTitle.set(head, []).get(head)!).push(c)
+  }
   for (const c of cards) {
     ;(byName.get(norm(c.n)) ?? byName.set(norm(c.n), []).get(norm(c.n))!).push(c)
     for (const p of c.p ?? []) {
@@ -91,7 +106,7 @@ export function matchProducts(cards: YgoCard[], cache: ProductCache) {
     }
   }
   const match = new Map<number, ProductMatch>()
-  const stats = { exact: 0, bySetCode: 0, byName: 0, unmatched: 0, misprints: 0 }
+  const stats = { exact: 0, bySetCode: 0, byName: 0, byTitle: 0, unmatched: 0, misprints: 0 }
   for (const g of Object.values(cache))
     for (const [productId, number, rarity, name] of g.products) {
       if (/misprint/i.test(name)) {
@@ -115,6 +130,17 @@ export function matchProducts(cards: YgoCard[], cache: ProductCache) {
         const named = byName.get(want)
         card = named?.length === 1 ? named[0] : undefined
         if (card) stats.byName++
+        else {
+          // Translated names differ after the title (TCG `Layer 19 "Sudden Incursion! ..."` vs YGOPRODeck
+          // `Layer 19: "Preventing the Invasion! ..."`): match on the part before the quote/colon when exactly one card
+          // has it and it's at least two words.
+          const head = titleOf(baseName(name))
+          const byHead = head ? byTitle.get(head) : undefined
+          if (byHead?.length === 1) {
+            card = byHead[0]
+            stats.byTitle++
+          }
+        }
       }
       if (card) match.set(productId, { card, number, rarity, known: false })
       else stats.unmatched++
@@ -125,7 +151,12 @@ export function matchProducts(cards: YgoCard[], cache: ProductCache) {
 /** Adds printings TCGplayer has but YGOPRODeck doesn't, so they can be picked when adding a card. */
 export function addTcgPrintings(cache: ProductCache, match: Map<number, ProductMatch>) {
   const setName = new Map<number, string>()
-  for (const g of Object.values(cache)) for (const [productId] of g.products) setName.set(productId, g.name)
+  const productName = new Map<number, string>()
+  for (const g of Object.values(cache))
+    for (const [productId, , , name] of g.products) {
+      setName.set(productId, g.name)
+      productName.set(productId, baseName(name))
+    }
   let added = 0
   for (const [productId, m] of match) {
     if (m.known) continue
@@ -133,6 +164,9 @@ export function addTcgPrintings(cache: ProductCache, match: Map<number, ProductM
     if (list.some((p) => p.c === m.number && p.r === m.rarity)) continue
     list.push({ c: m.number, r: m.rarity, rc: '', s: setName.get(productId) ?? '', tcg: true })
     added++
+    // Keep TCGplayer's English name when it differs (translated names), so searching it finds the card.
+    const tcgName = productName.get(productId)
+    if (tcgName && norm(tcgName) !== norm(m.card.n) && !(m.card.an ?? []).includes(tcgName)) (m.card.an ??= []).push(tcgName)
   }
   return added
 }

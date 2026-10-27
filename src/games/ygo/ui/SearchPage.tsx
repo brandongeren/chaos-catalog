@@ -60,7 +60,13 @@ export function SearchPage({ searcher, prices }: Props) {
   const addTo = params.get('add') ?? undefined
   const [adding, setAdding] = useState<YgoCard>()
   const canAdd = !!coll && !coll.readOnly
-  const results = useMemo(() => searcher.search(deferred, cardPrice, ownedSet), [searcher, deferred, cardPrice, ownedSet])
+  const exact = useMemo(() => searcher.search(deferred, cardPrice, ownedSet), [searcher, deferred, cardPrice, ownedSet])
+  // Nothing found by name: show close matches (a typo, "Quantum" for "Quantal", …) instead of an empty page.
+  const suggestions = useMemo(
+    () => (!exact.length && deferred.q.trim() && !deferred.fuzzy && !syntaxOn ? searcher.search({ ...deferred, fuzzy: true }, cardPrice, ownedSet).slice(0, 20) : []),
+    [exact, deferred, syntaxOn, searcher, cardPrice, ownedSet],
+  )
+  const results = exact.length ? exact : suggestions
   // "Show more" pages reset whenever the search changes.
   const queryKey = toParams(deferred).toString()
   const [page, setPage] = useState({ key: queryKey, limit: PAGE })
@@ -169,9 +175,23 @@ export function SearchPage({ searcher, prices }: Props) {
 
       {showFilters && !syntaxOn && <Filters query={query} races={searcher.races} archetypes={searcher.archetypes} onChange={update} />}
 
+      {!exact.length && (
+        <p className="muted small">
+          {suggestions.length ? <>No cards named “{deferred.q.trim()}”. Close matches:</> : 'No cards match.'}
+          {(advanced > 0 || query.mine || query.related !== undefined) && (
+            <>
+              {' '}
+              Filters are on{query.mine ? ' (only cards in the collection)' : ''}.{' '}
+              <button type="button" className="link" onClick={() => update({ ...emptyQuery(), q: query.q, fuzzy: query.fuzzy })}>
+                Clear filters
+              </button>
+            </>
+          )}
+        </p>
+      )}
       <div className="results-head">
         <span>
-          {results.length.toLocaleString()} card{results.length === 1 ? '' : 's'}
+          {exact.length.toLocaleString()} card{exact.length === 1 ? '' : 's'}
           {relatedTo && (
             <>
               {' '}

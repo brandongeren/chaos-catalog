@@ -24,6 +24,8 @@ export interface YgoCard {
   alt?: number[]
   /** Name. */
   n: string
+  /** Other English names this card is sold under (TCGplayer's, when YGOPRODeck's is a different translation). */
+  an?: string[]
   /** Type line as YGOPRODeck names it, e.g. "Effect Monster", "Spell Card". */
   t: string
   /** Frame type, e.g. "effect", "xyz", "spell", "effect_pendulum". */
