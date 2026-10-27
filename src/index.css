@@ -728,7 +728,7 @@ nav.tabs {
 
 .stack-row {
   display: grid;
-  grid-template-columns: 2.5rem 1fr auto;
+  grid-template-columns: 2.5rem 1fr auto auto;
   gap: 0.5rem;
   align-items: center;
   padding: 0.45rem 0.25rem;
@@ -1036,4 +1036,16 @@ code {
 
 .sub-icon {
   color: var(--accent);
+}
+
+.stack-price {
+  text-align: right;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 48rem) {
+  .stack-row {
+    grid-template-columns: 2.5rem 1fr auto;
+  }
 }

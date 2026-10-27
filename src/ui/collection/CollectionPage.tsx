@@ -4,6 +4,10 @@ import { photoUrl } from '../../core/supabase.ts'
 import { useUrlParams } from '../../lib/useUrlParams.ts'
 import { summary } from '../../games/ygo/classify.ts'
 import { Modal } from '../Modal.tsx'
+import { usePrices } from '../pricesContext.ts'
+import { stackPrice } from '../../games/ygo/prices.ts'
+import { money } from '../../games/ygo/ui/format.ts'
+import type { YgoPriceDay } from '../../games/ygo/types.ts'
 import { toYdk, toYdke, type RawDeck } from '../../games/ygo/decks.ts'
 import { download } from '../../lib/download.ts'
 import { cardOf, change, nameOfStack, useCollection, useCollectionContext } from './context.ts'
@@ -38,6 +42,23 @@ const count = (c: Collection, groupId: string) => {
 /** Cards in a group and all its sub-groups. */
 const countAll = (c: Collection, groupId: string) => [groupId, ...descendantsOf(c, groupId).map((g) => g.id)].reduce((n, id) => n + count(c, id), 0)
 
+/** Market value of the cards in these groups (undefined when no prices are loaded). */
+const valueOf = (c: Collection, prices: YgoPriceDay | undefined, groupIds: string[]) => {
+  if (!prices) return undefined
+  const ids = new Set(groupIds)
+  let v = 0
+  for (const s of c.stacks.values()) if (ids.has(s.group_id)) v += (stackPrice(prices, s) ?? 0) * s.qty
+  return v
+}
+const withSubs = (c: Collection, groupId: string) => [groupId, ...descendantsOf(c, groupId).map((g) => g.id)]
+
+/** Prices are shown unless you're viewing someone who hides them. */
+function useVisiblePrices() {
+  const ctx = useCollectionContext()
+  const prices = usePrices()
+  return ctx.readOnly && !ctx.owner.show_prices ? undefined : prices
+}
+
 /** Children in display order: by position in ordered groups, else by name. */
 const sortedChildren = (c: Collection, parent: Group) =>
   childGroups(c, parent.id).sort((a, b) => (parent.ordered ? (a.position ?? 0) - (b.position ?? 0) : a.name.localeCompare(b.name)))
@@ -71,6 +92,8 @@ export function CollectionPage() {
     }
   }, [c])
   const total = useMemo(() => [...c.stacks.values()].reduce((n, s) => n + s.qty, 0), [c])
+  const prices = useVisiblePrices()
+  const collectionValue = useMemo(() => valueOf(c, prices, [...c.groups.keys()]), [c, prices])
 
   const groupLink = (g: Group): React.ReactNode => {
     const kids = sortedChildren(c, g)
@@ -97,6 +120,7 @@ export function CollectionPage() {
       <aside className="tree">
         <p className="muted small">
           {ctx.readOnly ? `${ctx.owner.display_name || ctx.owner.username}'s collection` : 'Your collection'} · {total.toLocaleString()} cards
+          {collectionValue !== undefined && ` · ≈ ${money(collectionValue)}`}
           {ctx.owner.city && ` · ${ctx.owner.city}`}
         </p>
         {!ctx.readOnly && (
@@ -206,12 +230,15 @@ function BoxView({ box, onDialog, onOpenGroup }: { box: Box; onDialog: (d: Dialo
   const groups = [...c.groups.values()].filter((g) => g.box_id === box.id && !g.parent_id).sort((a, b) => (a.row_label ?? '').localeCompare(b.row_label ?? '', undefined, { numeric: true }) || a.name.localeCompare(b.name))
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const toggle = (id: string) => setPicked((p) => (p.has(id) ? new Set([...p].filter((x) => x !== id)) : new Set([...p, id])))
+  const prices = useVisiblePrices()
+  const boxValue = valueOf(c, prices, groups.flatMap((g) => withSubs(c, g.id)))
   return (
     <div>
       <header className="pane-head">
         <Photo path={box.photo_path} />
         <div>
           <h2>{box.name}</h2>
+          {boxValue !== undefined && <p className="muted small">≈ {money(boxValue)}</p>}
           {box.notes && <p className="muted">{box.notes}</p>}
         </div>
         {!ctx.readOnly && (
@@ -242,7 +269,10 @@ function BoxView({ box, onDialog, onOpenGroup }: { box: Box; onDialog: (d: Dialo
               <span className="meta">
                 {[rowName(g.row_label), g.kind === 'deck' ? 'Deck' : null, g.ordered ? 'ordered' : null].filter(Boolean).join(' · ')}
               </span>
-              <span className="side">{countAll(c, g.id)} cards</span>
+              <span className="side">
+                <span>{countAll(c, g.id)} cards</span>
+                {prices && <span className="muted">≈ {money(valueOf(c, prices, withSubs(c, g.id))!)}</span>}
+              </span>
             </button>
           </li>
         ))}
@@ -276,6 +306,8 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
       : list.sort((a, b) => nameOfStack(ctx.searcher, c, a).localeCompare(nameOfStack(ctx.searcher, c, b)))
   }, [c, group, ctx.searcher])
   const subs = useMemo(() => sortedChildren(c, group), [c, group])
+  const prices = useVisiblePrices()
+  const groupValue = valueOf(c, prices, withSubs(c, group.id))
   // One list of cards and sub-groups. Ordered groups interleave them by position; otherwise sub-groups come first.
   type Item = { kind: 'stack'; s: Stack; position: number } | { kind: 'group'; g: Group; position: number }
   const items: Item[] = useMemo(() => {
@@ -358,6 +390,7 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
             {groupPath(c, group.id)} · {group.kind === 'deck' ? 'Deck' : group.kind === 'holding' ? 'In-between area' : group.kind === 'lent' ? 'Lent out' : 'Group'}
             {group.ordered ? ' · kept in order' : ''} · {count(c, group.id)}{group.capacity ? ` of ${group.capacity}` : ''} cards
             {subs.length > 0 && ` (+${countAll(c, group.id) - count(c, group.id)} in ${subs.length} sub-group${subs.length > 1 ? 's' : ''})`}
+            {groupValue !== undefined && ` · ≈ ${money(groupValue)}`}
           </p>
           {group.notes && <p className="muted">{group.notes}</p>}
         </div>
@@ -460,6 +493,7 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
                         {s.lent_to_name && <span className="badge">lent to {s.lent_to_name}{s.lent_due ? `, due ${s.lent_due}` : ''}</span>}
                         <span className="meta">{detailText(s) || (card ? summary(card) : 'custom card')}</span>
                       </span>
+                      {prices && <StackPrice each={stackPrice(prices, s)} qty={s.qty} />}
                       {!ctx.readOnly && (
                         <span className="row-actions">
                           {arrows(i)}
@@ -581,5 +615,15 @@ function MoveGroupsDialog({ groups, onClose }: { groups: Group[]; onClose: () =>
         </div>
       </form>
     </Modal>
+  )
+}
+
+function StackPrice({ each, qty }: { each: number | undefined; qty: number }) {
+  if (each === undefined) return <span className="stack-price muted small">no price</span>
+  return (
+    <span className="stack-price" title="TCGplayer market price">
+      {money(each)}
+      {qty > 1 && <span className="muted small"> · {money(each * qty)}</span>}
+    </span>
   )
 }

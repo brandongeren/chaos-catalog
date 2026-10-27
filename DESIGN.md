@@ -274,7 +274,9 @@ cards", off by default).
 - **Movers page:** your cards (or all cards) ranked by change vs 7, 14, 21 or 28 days ago, rising or falling, with a
   **$ / %** toggle and a minimum price (default $1) so tiny prices don't dominate the % view. Collection value uses the
   exact printing and edition when recorded, else the printing's cheapest edition, else the card's cheapest printing.
-- Collection value totals per box, group and deck (hidden for viewers if the owner turned prices off).
+- Collection value totals per box, group and deck (hidden for viewers if the owner turned prices off). Built
+  2026-10-26: the Collection tab shows each stack's price per copy and line total, group/box values (including
+  sub-groups) and the collection total in the sidebar.
 
 ---
 

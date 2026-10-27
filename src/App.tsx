@@ -17,6 +17,7 @@ import { DecksPage } from './games/ygo/ui/DecksPage.tsx'
 import { FriendsPage } from './ui/social/FriendsPage.tsx'
 import { PricesPage } from './games/ygo/ui/PricesPage.tsx'
 import { SyncBanner } from './ui/collection/SyncBanner.tsx'
+import { PricesContext } from './ui/pricesContext.ts'
 import { ScanPage } from './games/ygo/ui/ScanPage.tsx'
 import { SyntaxGuide } from './games/ygo/ui/SyntaxGuide.tsx'
 
@@ -147,6 +148,7 @@ function Shell() {
           </p>
         )}
         {searcher && (
+          <PricesContext.Provider value={prices}>
           <CollectionContext.Provider value={ctx}>
             {view === 'search' && <SearchPage searcher={searcher} prices={prices} />}
             {(view === 'collection' || view === 'user') && (ctx ? <CollectionPage /> : <SignInHint />)}
@@ -164,6 +166,7 @@ function Shell() {
             {view === 'scan' && (own && !viewingOther ? <ScanPage searcher={searcher} /> : <SignInHint />)}
             {view === 'account' && <AccountPage inviteCode={params.get('invite') ?? undefined} />}
           </CollectionContext.Provider>
+          </PricesContext.Provider>
         )}
       </main>
       {state.status === 'ok' && <StaleNotice meta={state.meta} />}
