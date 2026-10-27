@@ -27,9 +27,9 @@ Everything a fresh session needs; the sections below hold the full design and de
 - Explain things in plain words; the user isn't a developer of this stack. The user prefers being asked before
   choices that are theirs, and a short action list when they owe steps.
 
-**Migrations applied:** 0000-0007 confirmed (column checks with the public key). **0008_borrow_and_trade.sql:
-unconfirmed** (copied to the user; can't be verified anonymously). Until it runs: "borrow and trade" can't be saved,
-and the app re-downloads the collection on every open (safe, just more egress).
+**Migrations applied:** 0000-0007 confirmed (column checks with the public key); 0008 run by the user on 2026-10-27
+(not yet exercised: no card is marked "both" yet, which is the visible sign it works). The "New" rarity fix was
+applied (MAMO-EN017 is now Ultra Rare (Overframe)).
 
 **Code map**
 | Path | What |
@@ -68,10 +68,9 @@ https://brandongeren.github.io/chaos-catalog/data` (reuses the published prices 
   Actions for "schedule" runs.) If unreliable: a Supabase pg_cron job calling workflow_dispatch with a repo-scoped
   token (needs the user's token; not set up). GitHub also stops schedules after 60 days without commits.
 - Overframe prices appear separately from the next daily price run on.
-- The user should click **Fix** on the "New" rarity banner in the Collection tab (Cyberse Code Magician MAMO-EN017).
 - Camera scanning accuracy on real photos is untested (needs photos from the user).
 - Search speed on a phone with fuzzy on was never measured.
-- Free-tier usage was fine on 2026-10-27 (§16); egress fix depends on 0008.
+- Free-tier usage was fine on 2026-10-27 (§16).
 
 ---
 
