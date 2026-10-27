@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { AuthProvider } from './core/auth.tsx'
 import { useAuth } from './core/authActions.ts'
 import { CollectionStore } from './core/collection/store.ts'
@@ -19,6 +19,9 @@ import { PricesPage } from './games/ygo/ui/PricesPage.tsx'
 import { SyncBanner } from './ui/collection/SyncBanner.tsx'
 import { ScanPage } from './games/ygo/ui/ScanPage.tsx'
 import { SyntaxGuide } from './games/ygo/ui/SyntaxGuide.tsx'
+
+// Development-only sample collection (?view=demo); dropped from production builds.
+const DemoCollection = import.meta.env.DEV ? lazy(() => import('./ui/collection/DemoCollection.tsx')) : null
 
 type State =
   | { status: 'loading' }
@@ -153,6 +156,11 @@ function Shell() {
             {view === 'friends' && <FriendsPage searcher={searcher} tab={params.get('tab') ?? undefined} />}
             {view === 'data' && (ctx ? <DataPage /> : <SignInHint />)}
             {view === 'syntax' && <SyntaxGuide />}
+            {view === 'demo' && DemoCollection && (
+              <Suspense fallback={null}>
+                <DemoCollection searcher={searcher} />
+              </Suspense>
+            )}
             {view === 'scan' && (own && !viewingOther ? <ScanPage searcher={searcher} /> : <SignInHint />)}
             {view === 'account' && <AccountPage inviteCode={params.get('invite') ?? undefined} />}
           </CollectionContext.Provider>

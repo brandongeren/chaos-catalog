@@ -179,6 +179,12 @@ cards", off by default).
 ## 6. Collection management
 
 - Browse boxes → rows → groups with thumbnails; a Notion-like layout (sidebar tree, clean lists).
+  As built (2026-10-26): each box is a rounded card with its total; rows are dashed bands labelled "Row N" (a bare
+  label like "2" is shown as "Row 2", also in location paths); groups are pills with a count badge; sub-groups are
+  indented under their group. On phones, picking a box or group scrolls down to it.
+- **Edit copies:** "Copies here" sets a stack's count (more = copies added with the same details, fewer = taken
+  out; both in History); "apply detail changes to N" splits off only some copies. Details are only touched if they
+  changed, so an ordered group doesn't split identical copies.
 - Create, rename and delete boxes and groups; set `ordered` per group; drag to reorder in ordered groups.
 - **Bulk actions:** multi-select stacks or whole groups → move to a group, move groups to another box, send to a holding
   area, mark availability, edit details, remove.

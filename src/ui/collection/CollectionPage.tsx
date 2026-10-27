@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { childGroups, descendantsOf, groupPath, uuid, type Availability, type Box, type Collection, type Group, type Section, type Stack } from '../../core/collection/model.ts'
+import { childGroups, descendantsOf, groupPath, rowName, uuid, type Availability, type Box, type Collection, type Group, type Section, type Stack } from '../../core/collection/model.ts'
 import { photoUrl } from '../../core/supabase.ts'
 import { useUrlParams } from '../../lib/useUrlParams.ts'
 import { summary } from '../../games/ygo/classify.ts'
@@ -55,6 +55,9 @@ export function CollectionPage() {
     p.delete('b')
     p.set(key, id)
     setParams(p)
+    // On phones the list sits above the cards: jump down to what was picked.
+    if (window.matchMedia('(max-width: 48rem)').matches)
+      requestAnimationFrame(() => document.querySelector('.pane')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
   const tree = useMemo(() => {
@@ -74,10 +77,10 @@ export function CollectionPage() {
     return (
       <li key={g.id}>
         <button type="button" className={selectedGroup === g.id ? 'tree-item on' : 'tree-item'} onClick={() => select('g', g.id)}>
-          <span>{g.name}</span>
-          <span className="muted">{countAll(c, g.id)}</span>
+          <span className="tree-item-name">{g.name}</span>
+          <span className="count">{countAll(c, g.id)}</span>
         </button>
-        {kids.length > 0 && <ul className="tree-sub">{kids.map(groupLink)}</ul>}
+        {kids.length > 0 && <ul className="tree-list tree-sub">{kids.map(groupLink)}</ul>}
       </li>
     )
   }
@@ -119,36 +122,44 @@ export function CollectionPage() {
           </div>
         )}
         {tree.boxes.map(({ box, groups }) => (
-          <section key={box.id}>
-            <button type="button" className={selectedBox === box.id ? 'tree-box on' : 'tree-box'} onClick={() => select('b', box.id)}>
+          <section key={box.id} className={selectedBox === box.id ? 'tree-card on' : 'tree-card'}>
+            <button type="button" className="tree-card-head" onClick={() => select('b', box.id)}>
               {box.photo_path && <img src={photoUrl(box.photo_path)} alt="" className="tree-thumb" />}
-              {box.name}
+              <span className="tree-card-title">{box.name}</span>
+              <span className="count">{groups.reduce((n, g) => n + countAll(c, g.id), 0)}</span>
             </button>
             {rowsOf(groups).map(([row, gs]) => (
-              <div key={row}>
-                {row && <div className="tree-row muted small">{row}</div>}
-                <ul>{gs.map(groupLink)}</ul>
+              <div key={row} className={row ? 'tree-rowbox' : undefined}>
+                {row && <div className="tree-row">{rowName(row)}</div>}
+                <ul className="tree-list">{gs.map(groupLink)}</ul>
               </div>
             ))}
+            {!groups.length && <p className="muted small tree-empty">No groups yet</p>}
           </section>
         ))}
         {tree.loose.length > 0 && (
-          <section>
-            <div className="tree-heading">On their own</div>
-            <ul>{tree.loose.map(groupLink)}</ul>
+          <section className="tree-card">
+            <div className="tree-card-head static">
+              <span className="tree-card-title">On their own</span>
+            </div>
+            <ul className="tree-list">{tree.loose.map(groupLink)}</ul>
           </section>
         )}
         {tree.decks.length > 0 && (
-          <section>
-            <div className="tree-heading">Decks</div>
-            <ul>{tree.decks.map(groupLink)}</ul>
+          <section className="tree-card">
+            <div className="tree-card-head static">
+              <span className="tree-card-title">Decks</span>
+            </div>
+            <ul className="tree-list">{tree.decks.map(groupLink)}</ul>
           </section>
         )}
-        <section>
-          <div className="tree-heading">In-between</div>
-          <ul>{tree.holding.map(groupLink)}</ul>
+        <section className="tree-card">
+          <div className="tree-card-head static">
+            <span className="tree-card-title">In-between</span>
+          </div>
+          <ul className="tree-list">{tree.holding.map(groupLink)}</ul>
           {!ctx.readOnly && (
-            <button type="button" className="link small" onClick={() => setDialog({ kind: 'group', groupKind: 'holding' })}>
+            <button type="button" className="link small tree-add" onClick={() => setDialog({ kind: 'group', groupKind: 'holding' })}>
               + in-between area
             </button>
           )}
@@ -229,7 +240,7 @@ function BoxView({ box, onDialog, onOpenGroup }: { box: Box; onDialog: (d: Dialo
             <button type="button" className="result" onClick={() => onOpenGroup(g.id)}>
               <span className="name">{g.name}</span>
               <span className="meta">
-                {[g.row_label, g.kind === 'deck' ? 'Deck' : null, g.ordered ? 'ordered' : null].filter(Boolean).join(' · ')}
+                {[rowName(g.row_label), g.kind === 'deck' ? 'Deck' : null, g.ordered ? 'ordered' : null].filter(Boolean).join(' · ')}
               </span>
               <span className="side">{countAll(c, g.id)} cards</span>
             </button>

@@ -166,8 +166,11 @@ export function groupPath(c: Collection, groupId: string | null | undefined): st
   const chain = ancestorsOf(c, g.id).reverse()
   const top = chain[0] ?? g
   const box = top.box_id ? c.boxes.get(top.box_id) : undefined
-  return [box?.name, top.row_label, ...chain.map((x) => x.name), g.name].filter(Boolean).join(' › ')
+  return [box?.name, rowName(top.row_label), ...chain.map((x) => x.name), g.name].filter(Boolean).join(' › ')
 }
+
+/** "2" -> "Row 2"; labels that already say row ("Row 2", "row B") stay as typed. */
+export const rowName = (label: string | null | undefined) => (!label ? '' : /^row\b/i.test(label.trim()) ? label.trim() : `Row ${label.trim()}`)
 
 /** Parent, grandparent, … of a group (nearest first). Stops on a loop, which the model never creates. */
 export function ancestorsOf(c: Collection, groupId: string): Group[] {
@@ -453,6 +456,19 @@ export class Draft {
     )
     this.line(s, qty, s.group_id, toGroupId)
     return moved
+  }
+
+  /**
+   * Sets how many copies a stack has: more adds copies with the same details (found another one), fewer takes
+   * copies out (history keeps them). The stack keeps its place in an ordered group.
+   */
+  setQty(stackId: string, qty: number) {
+    const s = this.stack(stackId)
+    if (!Number.isInteger(qty) || qty < 1) throw new CollectionError('Use Remove to take out every copy')
+    if (qty === s.qty) return
+    this.set('stacks', { ...s, qty })
+    if (qty > s.qty) this.line(s, qty - s.qty, null, s.group_id)
+    else this.line(s, s.qty - qty, s.group_id, null)
   }
 
   /** Takes copies out of the collection entirely (history keeps them, so they can be re-added later). */

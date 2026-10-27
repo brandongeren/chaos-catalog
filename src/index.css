@@ -562,59 +562,145 @@ nav.tabs {
   padding: 0;
 }
 
-.tree-box,
-.tree-item {
+.tree .chips .chip {
+  font-size: 0.85rem;
+  padding: 0.2rem 0.6rem;
+}
+
+/* A box (and the "On their own" / "Decks" / "In-between" sections): a rounded card. */
+.tree-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-soft);
+  padding: 0.35rem 0.4rem 0.45rem;
+}
+
+.tree-card.on {
+  border-color: var(--accent);
+}
+
+.tree-card-head {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  justify-content: space-between;
+  gap: 0.45rem;
   background: none;
   border: none;
-  border-radius: 6px;
-  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  padding: 0.3rem 0.4rem;
   text-align: left;
   cursor: pointer;
 }
 
-.tree-box {
-  font-weight: 600;
-  justify-content: flex-start;
-}
-
-.tree-item {
-  padding-left: 1.25rem;
-}
-
-.tree-box:hover,
-.tree-item:hover {
-  background: var(--bg-soft);
-}
-
-.tree-box.on,
-.tree-item.on {
+.tree-card-head:not(.static):hover {
   background: var(--accent-soft);
+}
+
+.tree-card-head.static {
+  cursor: default;
+}
+
+.tree-card-title {
+  flex: 1;
+  font-weight: 700;
+}
+
+.tree-card.on .tree-card-title {
   color: var(--accent);
 }
 
-.tree-row {
-  padding-left: 0.75rem;
+/* Rows: a labelled band inside the box. */
+.tree-rowbox {
+  margin: 0.3rem 0 0;
+  padding: 0.25rem;
+  border-radius: 9px;
+  border: 1px dashed var(--border);
 }
 
-.tree-heading {
+.tree-row {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding: 0 0.35rem 0.15rem;
+}
+
+.tree-list {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.25rem !important;
+}
+
+/* A group: a pill. */
+.tree-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.28rem 0.35rem 0.28rem 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tree-item:hover {
+  border-color: var(--accent);
+}
+
+.tree-item.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tree-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  flex: none;
+  min-width: 1.6rem;
+  text-align: center;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--muted);
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0 0.5rem;
+  background: var(--bg-soft);
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+}
+
+.tree-item.on .count {
+  color: var(--accent);
+  background: var(--bg);
+}
+
+/* Sub-groups: indented under their group, joined by a line. */
+.tree-sub {
+  margin: 0.25rem 0 0 0.9rem !important;
+  padding-left: 0.6rem !important;
+  border-left: 2px solid var(--border);
 }
 
 .tree-thumb {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.6rem;
+  height: 1.6rem;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: 6px;
+}
+
+.tree-empty,
+.tree-add {
+  margin: 0.35rem 0.5rem 0;
+  display: block;
 }
 
 .pane-head {
@@ -941,16 +1027,6 @@ code {
   background: var(--bg-soft);
   padding: 0 0.25rem;
   border-radius: 4px;
-}
-
-.tree-sub {
-  padding-left: 0.9rem !important;
-  border-left: 1px solid var(--border);
-  margin-left: 1.25rem !important;
-}
-
-.tree-sub .tree-item {
-  padding-left: 0.5rem;
 }
 
 .check-spacer {

@@ -305,6 +305,7 @@ export function EditStackDialog({ stack, onClose }: { stack: Stack; onClose: () 
   const ctx = useCollectionContext()
   const c = useCollection(ctx.store)
   const card = stack.card_key ? ctx.searcher.byId.get(Number(stack.card_key)) : undefined
+  const [total, setTotal] = useState<number | null>(stack.qty)
   const [qty, setQty] = useState<number | null>(stack.qty)
   const [details, setDetails] = useState<Details>({
     set_code: stack.set_code,
@@ -323,14 +324,39 @@ export function EditStackDialog({ stack, onClose }: { stack: Stack; onClose: () 
     <Modal title={`Edit ${name}`} onClose={onClose}>
       <form
         className="stack-form"
-        onSubmit={submit(() =>
-          change(ctx, 'edit', `Edited ${qty ?? 0}× ${name} in ${groupPath(c, stack.group_id)}`, (d) =>
-            d.edit(stack.id, qty ?? 0, { ...details, availability, ...(isDeck ? { section } : {}) }),
-          ),
-        )}
+        onSubmit={submit(() => {
+          const n = total ?? 0
+          const some = Math.min(qty ?? 0, n)
+          const changed = n !== stack.qty ? `${stack.qty} → ${n} copies` : ''
+          return change(ctx, 'edit', `Edited ${name} in ${groupPath(c, stack.group_id)}${changed ? ` (${changed})` : ''}`, (d) => {
+            d.setQty(stack.id, n)
+            // Only touch details if something changed (an ordered group would otherwise split off identical copies).
+            const detailsChanged =
+              (['set_code', 'rarity', 'edition', 'language', 'condition', 'note'] as const).some((k) => (details[k] ?? null) !== (stack[k] ?? null)) ||
+              availability !== stack.availability ||
+              (isDeck && section !== (stack.section ?? 'main'))
+            if (detailsChanged) d.edit(stack.id, stack.qty > 1 && qty !== stack.qty ? some : n, { ...details, availability, ...(isDeck ? { section } : {}) })
+          })
+        })}
       >
-        <Qty max={stack.qty} value={qty} onChange={setQty} />
-        {stack.qty > 1 && <p className="muted small">Editing fewer than all {stack.qty} splits them into their own stack.</p>}
+        <label className="field">
+          <span>Copies here</span>
+          <QtyInput max={999} value={total} onChange={setTotal} />
+        </label>
+        {total !== null && total !== stack.qty && (
+          <p className="muted small">
+            {total > stack.qty
+              ? `Adds ${total - stack.qty} more with the same details. If that copy is recorded somewhere else in your collection, use Move on it instead.`
+              : `Takes ${stack.qty - total} out of your collection (History keeps a record).`}
+          </p>
+        )}
+        {stack.qty > 1 && (
+          <label className="field">
+            <span>Apply detail changes to how many (of {total ?? stack.qty})</span>
+            <QtyInput max={total ?? stack.qty} value={qty} onChange={setQty} />
+            <span className="muted small">Fewer than all splits them into their own stack.</span>
+          </label>
+        )}
         {isDeck && <SectionSelect value={section} onChange={setSection} />}
         <DetailsFields card={card} value={details} onChange={setDetails} />
         <label className="field">

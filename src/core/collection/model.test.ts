@@ -184,6 +184,24 @@ describe('Draft', () => {
     expect(c.groups.get(pocket.id)).toMatchObject({ parent_id: ordered.id, position: 1 })
   })
 
+  it('setQty adds or takes out copies in place and records it', () => {
+    let { c, ordered } = setup()
+    let d = new Draft(c, nameOf)
+    const s = d.add({ card_key: '14558127', qty: 1, details: { note: 'signed' } }, ordered.id)
+    c = applyOp(c, d.finish('add', 'add'))
+    d = new Draft(c, nameOf)
+    d.setQty(s.id, 2)
+    let op = d.finish('qty', 'qty')
+    expect(op.summary.cards).toEqual([expect.objectContaining({ qty: 1, from: null, to: ordered.id, details: expect.objectContaining({ note: 'signed' }) })])
+    c = applyOp(c, op)
+    expect(c.stacks.get(s.id)).toMatchObject({ qty: 2, position: 1 })
+    d = new Draft(c, nameOf)
+    d.setQty(s.id, 1)
+    op = d.finish('qty', 'qty')
+    expect(op.summary.cards?.[0]).toMatchObject({ qty: 1, from: ordered.id, to: null })
+    expect(() => new Draft(c, nameOf).setQty(s.id, 0)).toThrow(/Remove/)
+  })
+
   it('refuses impossible edits', () => {
     const { c, a, box } = setup()
     const d = new Draft(c, nameOf)
