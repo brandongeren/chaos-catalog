@@ -242,6 +242,11 @@ cards", off by default).
   marked available, and only if their profile allows it.
 - **Borrow and trade:**
   - Marking: none / available to borrow / available to trade, per stack.
+  - **Defaults** (2026-10-26, `0007_availability_defaults.sql`): account default (Account), optional box and group
+    defaults (box/group settings). New cards take the nearest: group, parent groups, box, account, else none. Cards
+    already in the collection keep theirs, also when moved.
+  - **Bulk:** ticked cards in a group (bulk bar), or everything in a group with its sub-groups / a whole box
+    ("Borrow / trade…"), optionally also setting that group's default.
   - In-app request flow between users (request → accept/decline → the lend or transfer is recorded on both sides).
   - Lending to someone who isn't a user: record a name and optional due date; the cards move to the "Lent out" area and
     return to their old group (or one you pick).
@@ -421,6 +426,10 @@ Syntax search could move earlier (after phase 1) if you want it sooner.
   "Ultra Rare (Overframe)", with its own price, **when TCGplayer also lists the plain version**; when only the variant
   is listed (MAMO-EN017 Starlight Rare), that listing is the printing. Placeholder rarities ("New", bare numbers) are
   dropped where the same set code has real ones (195 dropped, 86 variants split).
+
+- **Placeholder repair (2026-10-26):** stacks saved with a placeholder rarity ("New") get a one-click fix in the
+  Collection tab when that set code now has exactly one printing YGOPRODeck didn't list (the one "New" stood for);
+  otherwise the banner lists them for a manual Edit.
 
 ## 16. Still open
 
