@@ -1,9 +1,77 @@
-# Chaos Catalog: design (draft 1, 2026-10-26)
+# Chaos Catalog: design (living document; last updated 2026-10-27)
 
 A chaos-storage collection manager for trading cards, Yu-Gi-Oh first. Cards go wherever there's room; the app remembers
 where. Runs in any browser (phone or computer), installable as an app, free to host.
 
 Name: **Chaos Catalog** (repo `brandongeren/chaos-catalog`). Icon: the artwork of the card "Chaos Greed".
+
+---
+
+## 0. Start here (handoff, 2026-10-27)
+
+Everything a fresh session needs; the sections below hold the full design and decisions.
+
+**State:** all 10 build phases are built, deployed and in use. Live: https://brandongeren.github.io/chaos-catalog/
+(GitHub Pages, repo https://github.com/brandongeren/chaos-catalog, branch `main`). Supabase project
+`https://uxnwfrxpxilgfvrbyvlx.supabase.co`. The owner's account is `brandongeren` (admin, city "lincoln, ne").
+
+**Working rules** (also in `CLAUDE.md` and `~/claude/CLAUDE.md`):
+- Personal project, separate from work tooling: never copy or reference it in `~/.claude` (the Waylon repo).
+- Keep this file current in the same commit as any design change.
+- Commits: identity is set per repo (`Brandon Geren`, `7003889+brandongeren@users.noreply.github.com`). The user
+  allows pushing to `main`; every push deploys. Push runs never call TCGCSV (`TCGCSV_FETCH=false`).
+- Be gentle with YGOPRODeck and TCGCSV (README "Card data and prices"): one request per TCGCSV price file per day.
+- Database changes are new files in `supabase/migrations/` (never edit applied ones). The user runs them by hand in
+  the Supabase SQL Editor; copy one for them with `pbcopy < supabase/migrations/<file>` and say what breaks until it
+  runs. Any change to `_put_row()`/`apply_ops()` is a `create or replace` of the latest full body.
+- Explain things in plain words; the user isn't a developer of this stack. The user prefers being asked before
+  choices that are theirs, and a short action list when they owe steps.
+
+**Migrations applied:** 0000-0007 confirmed (column checks with the public key). **0008_borrow_and_trade.sql:
+unconfirmed** (copied to the user; can't be verified anonymously). Until it runs: "borrow and trade" can't be saved,
+and the app re-downloads the collection on every open (safe, just more egress).
+
+**Code map**
+| Path | What |
+|---|---|
+| `scripts/build-data.ts`, `scripts/games/ygo.ts` | Daily data build: YGOPRODeck catalog (+ cardsets dates, beta names), TCGCSV prices |
+| `scripts/games/ygo-tcgplayer.ts` | TCGplayer products → printings (set code+rarity, set code, name, title), variants, placeholders |
+| `src/games/ygo/` | Yu-Gi-Oh adapter: types, search, query/URL, syntax, decks (formats), scan (OCR), prices, data loading |
+| `src/games/ygo/ui/` | Search, card detail, filters, decks, prices, scan, syntax guide pages |
+| `src/core/collection/model.ts` | Draft/applyOp: the only way the collection changes (shared with the server's semantics) |
+| `src/core/collection/store.ts` | Sync: IndexedDB copy + queue, apply_ops, conflicts, skip-download check |
+| `src/core/collection/{pull,files}.ts` | Deck pull lists; JSON/CSV import/export |
+| `src/ui/collection/` | Collection page (sidebar, group/box views), dialogs, history, data page, sync banner, demo |
+| `src/ui/social/`, `src/core/social.ts` | Friends, requests, trades, wants, who has it |
+| `supabase/migrations/`, `supabase/functions/fetch-deck/` | Schema + RLS + RPCs; deck-page fetcher (deployed as `fetch-deck`) |
+| `supabase/sql.test.ts`, `supabase/store.test.ts` | Real SQL in PGlite (permissions, apply_ops parity, social, offline store) |
+
+**Checking work:** `npm test` (80 tests), `npm run typecheck`, `npm run lint` (a few known warnings),
+`BASE_PATH=/chaos-catalog/ npm run build`. Screens without signing in: `npm run dev`, then `?view=demo` (dev-only
+sample collection, never in the live build). Browser checks used Playwright from `~/.claude/tools/.venv` (screenshots
+under /tmp, deleted after). Local data: `TCGCSV_FETCH=false npx tsx scripts/build-data.ts --previous
+https://brandongeren.github.io/chaos-catalog/data` (reuses the published prices and product cache, no TCGCSV calls).
+
+**Decisions made with the user after the original plan** (details in the sections below):
+- Home page is the collection when signed in. "Only my cards" sits left of Advanced in the search bar.
+- Sub-groups (any depth; share the order with cards in ordered groups). Rows display as "Row N".
+- Notes on copies (misprint, signed). "Copies here" sets a stack's count in Edit.
+- Availability: none / borrow / trade / both; defaults per account, box and group; bulk set per group or box.
+- Prices shown in the Collection tab (per copy, line, group, box, total).
+- Search: old names (`beta_name`) and TCGplayer names are searchable ("aka"); archetype members listed after name
+  matches; "did you mean" when an exact search finds nothing; overframe/alt-art printings are separate.
+- Duelingbook links are not supported (Turnstile); paste its .ydk/ydke export.
+- Card artwork: not built (needs a hosting decision, ~380 MB).
+
+**Open / watch next:**
+- Did GitHub's schedule fire? (The first day's 21:17 UTC run never started; a backup 03:47 UTC slot was added. Check
+  Actions for "schedule" runs.) If unreliable: a Supabase pg_cron job calling workflow_dispatch with a repo-scoped
+  token (needs the user's token; not set up). GitHub also stops schedules after 60 days without commits.
+- Overframe prices appear separately from the next daily price run on.
+- The user should click **Fix** on the "New" rarity banner in the Collection tab (Cyberse Code Magician MAMO-EN017).
+- Camera scanning accuracy on real photos is untested (needs photos from the user).
+- Search speed on a phone with fuzzy on was never measured.
+- Free-tier usage was fine on 2026-10-27 (§16); egress fix depends on 0008.
 
 ---
 
