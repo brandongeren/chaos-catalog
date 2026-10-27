@@ -942,3 +942,22 @@ code {
   padding: 0 0.25rem;
   border-radius: 4px;
 }
+
+.tree-sub {
+  padding-left: 0.9rem !important;
+  border-left: 1px solid var(--border);
+  margin-left: 1.25rem !important;
+}
+
+.tree-sub .tree-item {
+  padding-left: 0.5rem;
+}
+
+.check-spacer {
+  width: 13px;
+  flex: none;
+}
+
+.sub-icon {
+  color: var(--accent);
+}

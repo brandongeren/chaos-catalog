@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { importCsvOps, importJsonOps, parseCsv, parseJsonFile, toCsv, toJsonFile } from './files.ts'
-import { applyOp, Draft, emptyCollection, type Collection } from './model.ts'
+import { applyOp, Draft, emptyCollection, groupPath, type Collection } from './model.ts'
 
 const nameOf = (s: { card_key: string | null }) => ({ '1': 'Ash Blossom & Joyous Spring', '2': 'Called by the Grave' })[s.card_key ?? ''] ?? 'Custom'
 
@@ -11,6 +11,8 @@ function sample() {
   const box = d.createBox('Box 1')
   const g = d.createGroup('Fire, "hot" ones', { box_id: box.id, row_label: 'Row 2' })
   const deck = d.createGroup('Snake-Eye', { kind: 'deck' })
+  const page = d.createGroup('Page 1', { parent_id: g.id })
+  d.add({ card_key: '1', qty: 1, details: { note: 'signed' } }, page.id)
   d.add({ card_key: '1', qty: 3, details: { set_code: 'DUDE-EN003', rarity: 'Ultra Rare', condition: 'LP' }, availability: 'trade' }, g.id)
   d.add({ card_key: '2', qty: 1, details: { note: 'misprint, "Grave" spelled "Grove"' } }, deck.id)
   const custom = d.createCustomCard('Proxy Thing', { kind: 'Proxy' })
@@ -23,7 +25,7 @@ const summarize = (c: Collection) =>
   [...c.stacks.values()]
     .map((s) => {
       const g = c.groups.get(s.group_id)!
-      return [nameOf(s) === 'Custom' ? c.custom_cards.get(s.custom_card_id!)?.name : nameOf(s), s.qty, g.name, g.row_label, g.box_id ? c.boxes.get(g.box_id)!.name : null, s.condition, s.availability, s.section, s.note].join('|')
+      return [nameOf(s) === 'Custom' ? c.custom_cards.get(s.custom_card_id!)?.name : nameOf(s), s.qty, groupPath(c, g.id), s.condition, s.availability, s.section, s.note].join('|')
     })
     .sort()
 
@@ -56,12 +58,12 @@ describe('CSV', () => {
   it('round-trips cards and locations (custom cards are listed but not re-imported)', () => {
     const c = sample()
     const rows = parseCsv(toCsv(c, (s) => (s.custom_card_id ? 'Proxy Thing' : nameOf(s))))
-    expect(rows).toHaveLength(3)
+    expect(rows).toHaveLength(4)
     let target = emptyCollection()
     const resolve = (passcode: string, name: string) => (passcode ? passcode : name === 'Called by the Grave' ? '2' : undefined)
     const plan = importCsvOps(target, rows, resolve, nameOf)
-    expect(plan.cards).toBe(4)
-    expect(plan.unmatched).toEqual([{ line: 3, name: 'Proxy Thing' }])
+    expect(plan.cards).toBe(5)
+    expect(plan.unmatched.map((u) => u.name)).toEqual(['Proxy Thing'])
     for (const op of plan.ops) target = applyOp(target, op)
     expect(summarize(target)).toEqual(summarize(c).filter((x) => !x.startsWith('Proxy')))
   })

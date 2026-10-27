@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyOp, conflictOf, Draft, emptyCollection, suggestPlaces, type Collection, type Stack } from './model.ts'
+import { applyOp, conflictOf, Draft, emptyCollection, groupPath, suggestPlaces, type Collection, type Stack } from './model.ts'
 
 const nameOf = (s: Pick<Stack, 'card_key' | 'custom_card_id'>) => (s.card_key === '14558127' ? 'Ash Blossom' : s.card_key ?? 'custom')
 
@@ -151,6 +151,37 @@ describe('Draft', () => {
     c = applyOp(c, d.finish('setup', 'setup'))
     expect(suggestPlaces(c, 2).map((x) => [x.group.name, x.free])).toEqual([['Big', 70], ['Small', 2]])
     expect(suggestPlaces(c, 5).map((x) => x.group.name)).toEqual(['Big'])
+  })
+
+  it('sub-groups: nested paths, shared box, order with cards, no loops', () => {
+    let { c, box, ordered } = setup()
+    let d = new Draft(c, nameOf)
+    const binder = d.createGroup('Binder 2', { box_id: box.id, row_label: 'Row 3', ordered: true })
+    d.add({ card_key: '1', qty: 1 }, binder.id)
+    const page = d.createGroup('Page 1', { parent_id: binder.id })
+    const pocket = d.createGroup('Pocket A', { parent_id: page.id })
+    d.add({ card_key: '2', qty: 1 }, binder.id)
+    c = applyOp(c, d.finish('setup', 'setup'))
+    expect(groupPath(c, pocket.id)).toBe('Box 1 › Row 3 › Binder 2 › Page 1 › Pocket A')
+    expect(c.groups.get(pocket.id)?.box_id).toBe(box.id)
+    // cards and the sub-group share one order in the ordered binder
+    const order = [
+      ...[...c.stacks.values()].filter((s) => s.group_id === binder.id).map((s) => [s.card_key, s.position]),
+      ['Page 1', c.groups.get(page.id)?.position],
+    ].sort((x, y) => (x[1] as number) - (y[1] as number))
+    expect(order.map((x) => x[0])).toEqual(['1', 'Page 1', '2'])
+    d = new Draft(c, nameOf)
+    expect(() => d.updateGroup(binder.id, { parent_id: pocket.id })).toThrow(/inside itself/)
+    expect(() => d.deleteGroup(binder.id)).toThrow()
+    // moving the top group to no box takes its sub-groups along
+    d.updateGroup(binder.id, { box_id: null })
+    c = applyOp(c, d.finish('move', 'move'))
+    expect(c.groups.get(pocket.id)?.box_id).toBeNull()
+    // moving a sub-group into an ordered group gives it a place at the end
+    d = new Draft(c, nameOf)
+    d.updateGroup(pocket.id, { parent_id: ordered.id })
+    c = applyOp(c, d.finish('move', 'move'))
+    expect(c.groups.get(pocket.id)).toMatchObject({ parent_id: ordered.id, position: 1 })
   })
 
   it('refuses impossible edits', () => {

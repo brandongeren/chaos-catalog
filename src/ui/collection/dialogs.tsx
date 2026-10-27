@@ -3,6 +3,7 @@ import { myFriends } from '../../core/social.ts'
 import {
   CONDITIONS,
   EDITIONS,
+  descendantsOf,
   groupPath,
   suggestPlaces,
   type Availability,
@@ -476,7 +477,7 @@ export function BoxDialog({ box, onClose }: { box?: Box; onClose: () => void }) 
   )
 }
 
-export function GroupDialog({ group, kind, boxId, onClose }: { group?: Group; kind?: GroupKind; boxId?: string | null; onClose: () => void }) {
+export function GroupDialog({ group, kind, boxId, parentId, onClose }: { group?: Group; kind?: GroupKind; boxId?: string | null; parentId?: string; onClose: () => void }) {
   const ctx = useCollectionContext()
   const c = useCollection(ctx.store)
   const [name, setName] = useState(group?.name ?? '')
@@ -486,17 +487,24 @@ export function GroupDialog({ group, kind, boxId, onClose }: { group?: Group; ki
   const [ordered, setOrdered] = useState(group?.ordered ?? ctx.owner.group_ordered_default)
   const [notes, setNotes] = useState(group?.notes ?? '')
   const [capacity, setCapacity] = useState(group?.capacity ? String(group.capacity) : '')
+  const [parent, setParent] = useState<string>(group?.parent_id ?? parentId ?? '')
   const [file, setFile] = useState<File | null>()
   const { busy, error, submit } = useSubmit(onClose)
   const rows = [...new Set([...c.groups.values()].filter((g) => g.box_id === box && g.row_label).map((g) => g.row_label!))]
   const boxes = [...c.boxes.values()].sort((a, b) => a.name.localeCompare(b.name))
+  // A group can go inside any other group except itself, its own sub-groups, and Lent out.
+  const blocked = new Set(group ? [group.id, ...descendantsOf(c, group.id).map((g) => g.id)] : [])
+  const parents = [...c.groups.values()]
+    .filter((g) => !blocked.has(g.id) && g.kind !== 'lent')
+    .sort((a, b) => groupPath(c, a.id).localeCompare(groupPath(c, b.id)))
+  const title = group ? `Edit ${group.name}` : parent ? `New sub-group in ${c.groups.get(parent)?.name ?? ''}` : `New ${KIND_LABEL[groupKind].toLowerCase()}`
   return (
-    <Modal title={group ? `Edit ${group.name}` : `New ${KIND_LABEL[groupKind].toLowerCase()}`} onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       <form
         className="stack-form"
         onSubmit={submit(async () => {
           const photo_path = await resolvePhoto(ctx.owner.id, group?.photo_path ?? null, file)
-          const fields = { name, box_id: box || null, row_label: row.trim() || null, kind: groupKind, ordered, notes, photo_path, capacity: Number(capacity) > 0 ? Math.floor(Number(capacity)) : null }
+          const fields = { name, box_id: box || null, row_label: row.trim() || null, kind: groupKind, ordered, notes, photo_path, capacity: Number(capacity) > 0 ? Math.floor(Number(capacity)) : null, parent_id: parent || null }
           return group
             ? change(ctx, 'edit_group', `Edited ${name}`, (d) => d.updateGroup(group.id, fields))
             : change(ctx, 'create_group', `Created ${KIND_LABEL[groupKind].toLowerCase()} ${name}`, (d) => void d.createGroup(name, fields))
@@ -516,6 +524,20 @@ export function GroupDialog({ group, kind, boxId, onClose }: { group?: Group; ki
             </select>
           </label>
         )}
+        {group?.kind !== 'lent' && (
+          <label className="field">
+            <span>Inside another group? (makes it a sub-group)</span>
+            <select value={parent} onChange={(e) => setParent(e.target.value)}>
+              <option value="">No</option>
+              {parents.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {groupPath(c, g.id)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {!parent && (
         <label className="field">
           <span>Inside a box?</span>
           <select value={box} onChange={(e) => setBox(e.target.value)}>
@@ -527,7 +549,8 @@ export function GroupDialog({ group, kind, boxId, onClose }: { group?: Group; ki
             ))}
           </select>
         </label>
-        {box && (
+        )}
+        {box && !parent && (
           <label className="field">
             <span>Row (optional label inside the box)</span>
             <input value={row} list="row-labels" placeholder="e.g. Row 2" onChange={(e) => setRow(e.target.value)} />

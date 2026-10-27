@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { groupPath, uuid, type Availability, type Box, type Collection, type Group, type Section, type Stack } from '../../core/collection/model.ts'
+import { childGroups, descendantsOf, groupPath, uuid, type Availability, type Box, type Collection, type Group, type Section, type Stack } from '../../core/collection/model.ts'
 import { photoUrl } from '../../core/supabase.ts'
 import { useUrlParams } from '../../lib/useUrlParams.ts'
 import { summary } from '../../games/ygo/classify.ts'
@@ -23,7 +23,7 @@ import { languageName } from './labels.ts'
 
 type Dialog =
   | { kind: 'box'; box?: Box }
-  | { kind: 'group'; group?: Group; groupKind?: Group['kind']; boxId?: string | null }
+  | { kind: 'group'; group?: Group; groupKind?: Group['kind']; boxId?: string | null; parentId?: string }
   | { kind: 'move' | 'edit' | 'remove' | 'split' | 'lend' | 'giveback'; stack: Stack }
   | { kind: 'custom' }
   | { kind: 'bulk-move'; stacks: Stack[] }
@@ -34,6 +34,13 @@ const count = (c: Collection, groupId: string) => {
   for (const s of c.stacks.values()) if (s.group_id === groupId) n += s.qty
   return n
 }
+
+/** Cards in a group and all its sub-groups. */
+const countAll = (c: Collection, groupId: string) => [groupId, ...descendantsOf(c, groupId).map((g) => g.id)].reduce((n, id) => n + count(c, id), 0)
+
+/** Children in display order: by position in ordered groups, else by name. */
+const sortedChildren = (c: Collection, parent: Group) =>
+  childGroups(c, parent.id).sort((a, b) => (parent.ordered ? (a.position ?? 0) - (b.position ?? 0) : a.name.localeCompare(b.name)))
 
 export function CollectionPage() {
   const ctx = useCollectionContext()
@@ -54,22 +61,26 @@ export function CollectionPage() {
     const groups = [...c.groups.values()].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
     const boxes = [...c.boxes.values()].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
     return {
-      boxes: boxes.map((b) => ({ box: b, groups: groups.filter((g) => g.box_id === b.id) })),
-      loose: groups.filter((g) => !g.box_id && g.kind === 'storage'),
-      decks: groups.filter((g) => !g.box_id && g.kind === 'deck'),
-      holding: groups.filter((g) => !g.box_id && (g.kind === 'holding' || g.kind === 'lent')),
+      boxes: boxes.map((b) => ({ box: b, groups: groups.filter((g) => g.box_id === b.id && !g.parent_id) })),
+      loose: groups.filter((g) => !g.box_id && !g.parent_id && g.kind === 'storage'),
+      decks: groups.filter((g) => !g.box_id && !g.parent_id && g.kind === 'deck'),
+      holding: groups.filter((g) => !g.box_id && !g.parent_id && (g.kind === 'holding' || g.kind === 'lent')),
     }
   }, [c])
   const total = useMemo(() => [...c.stacks.values()].reduce((n, s) => n + s.qty, 0), [c])
 
-  const groupLink = (g: Group) => (
-    <li key={g.id}>
-      <button type="button" className={selectedGroup === g.id ? 'tree-item on' : 'tree-item'} onClick={() => select('g', g.id)}>
-        <span>{g.name}</span>
-        <span className="muted">{count(c, g.id)}</span>
-      </button>
-    </li>
-  )
+  const groupLink = (g: Group): React.ReactNode => {
+    const kids = sortedChildren(c, g)
+    return (
+      <li key={g.id}>
+        <button type="button" className={selectedGroup === g.id ? 'tree-item on' : 'tree-item'} onClick={() => select('g', g.id)}>
+          <span>{g.name}</span>
+          <span className="muted">{countAll(c, g.id)}</span>
+        </button>
+        {kids.length > 0 && <ul className="tree-sub">{kids.map(groupLink)}</ul>}
+      </li>
+    )
+  }
   const rowsOf = (groups: Group[]) => {
     const byRow = new Map<string, Group[]>()
     for (const g of groups) byRow.set(g.row_label ?? '', [...(byRow.get(g.row_label ?? '') ?? []), g])
@@ -158,7 +169,7 @@ export function CollectionPage() {
 
       {dialog?.kind === 'box' && <BoxDialog box={dialog.box} onClose={() => setDialog(undefined)} />}
       {dialog?.kind === 'group' && (
-        <GroupDialog group={dialog.group} kind={dialog.groupKind} boxId={dialog.boxId} onClose={() => setDialog(undefined)} />
+        <GroupDialog group={dialog.group} kind={dialog.groupKind} boxId={dialog.boxId} parentId={dialog.parentId} onClose={() => setDialog(undefined)} />
       )}
       {dialog?.kind === 'custom' && <CustomCardDialog onClose={() => setDialog(undefined)} />}
       {dialog?.kind === 'move' && <MoveDialog stack={dialog.stack} onClose={() => setDialog(undefined)} />}
@@ -181,7 +192,7 @@ function Photo({ path }: { path: string | null }) {
 function BoxView({ box, onDialog, onOpenGroup }: { box: Box; onDialog: (d: Dialog) => void; onOpenGroup: (id: string) => void }) {
   const ctx = useCollectionContext()
   const c = useCollection(ctx.store)
-  const groups = [...c.groups.values()].filter((g) => g.box_id === box.id).sort((a, b) => (a.row_label ?? '').localeCompare(b.row_label ?? '', undefined, { numeric: true }) || a.name.localeCompare(b.name))
+  const groups = [...c.groups.values()].filter((g) => g.box_id === box.id && !g.parent_id).sort((a, b) => (a.row_label ?? '').localeCompare(b.row_label ?? '', undefined, { numeric: true }) || a.name.localeCompare(b.name))
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const toggle = (id: string) => setPicked((p) => (p.has(id) ? new Set([...p].filter((x) => x !== id)) : new Set([...p, id])))
   return (
@@ -220,7 +231,7 @@ function BoxView({ box, onDialog, onOpenGroup }: { box: Box; onDialog: (d: Dialo
               <span className="meta">
                 {[g.row_label, g.kind === 'deck' ? 'Deck' : null, g.ordered ? 'ordered' : null].filter(Boolean).join(' · ')}
               </span>
-              <span className="side">{count(c, g.id)} cards</span>
+              <span className="side">{countAll(c, g.id)} cards</span>
             </button>
           </li>
         ))}
@@ -253,6 +264,16 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
       ? list.sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
       : list.sort((a, b) => nameOfStack(ctx.searcher, c, a).localeCompare(nameOfStack(ctx.searcher, c, b)))
   }, [c, group, ctx.searcher])
+  const subs = useMemo(() => sortedChildren(c, group), [c, group])
+  // One list of cards and sub-groups. Ordered groups interleave them by position; otherwise sub-groups come first.
+  type Item = { kind: 'stack'; s: Stack; position: number } | { kind: 'group'; g: Group; position: number }
+  const items: Item[] = useMemo(() => {
+    const list: Item[] = [
+      ...subs.map((g) => ({ kind: 'group' as const, g, position: g.position ?? 0 })),
+      ...stacks.map((s) => ({ kind: 'stack' as const, s, position: s.position ?? 0 })),
+    ]
+    return group.ordered ? list.sort((a, b) => a.position - b.position) : list
+  }, [subs, stacks, group.ordered])
   const visiblePicked = stacks.filter((s) => picked.has(s.id))
   const toggle = (id: string) => setPicked((p) => (p.has(id) ? new Set([...p].filter((x) => x !== id)) : new Set([...p, id])))
   const openCard = (s: Stack) => s.card_key && setParams(new URLSearchParams({ view: 'search', card: s.card_key }))
@@ -263,13 +284,57 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
     setPicked(new Set())
   }
   const swap = (i: number, j: number) => {
-    const a = stacks[i]
-    const b = stacks[j]
+    const a = items[i]
+    const b = items[j]
     if (!a || !b) return
+    const place = (d: Parameters<Parameters<typeof change>[3]>[0], x: Item, pos: number) =>
+      x.kind === 'stack' ? d.reposition(x.s.id, pos) : d.repositionGroup(x.g.id, pos)
     void run('reorder', `Reordered ${group.name}`, (d) => {
-      d.reposition(a.id, b.position ?? j)
-      d.reposition(b.id, a.position ?? i)
+      // equal positions (e.g. never set) would swap to the same place, so fall back to list indexes
+      const [pa, pb] = a.position === b.position ? [i + 1, j + 1] : [a.position, b.position]
+      place(d, a, pb)
+      place(d, b, pa)
     })
+  }
+  const arrows = (i: number) =>
+    group.ordered && (
+      <>
+        <button type="button" className="link" aria-label="Move up" disabled={i === 0} onClick={() => swap(i, i - 1)}>
+          ↑
+        </button>
+        <button type="button" className="link" aria-label="Move down" disabled={i === items.length - 1} onClick={() => swap(i, i + 1)}>
+          ↓
+        </button>
+      </>
+    )
+  const subRow = (g: Group) => {
+    const i = items.findIndex((x) => x.kind === 'group' && x.g.id === g.id)
+    return (
+      <li key={g.id} className="row-with-check">
+        {!ctx.readOnly && <span className="check-spacer" />}
+        <div className="stack-row">
+          <span className="qty sub-icon" aria-hidden>
+            ▸
+          </span>
+          <span className="stack-main">
+            <button type="button" className="link name" onClick={() => setParams(new URLSearchParams({ view: 'collection', g: g.id }))}>
+              {g.name}
+            </button>
+            <span className="meta">
+              Sub-group · {countAll(c, g.id)} cards{g.kind === 'deck' ? ' · deck' : ''}
+            </span>
+          </span>
+          {!ctx.readOnly && (
+            <span className="row-actions">
+              {arrows(i)}
+              <button type="button" className="link" onClick={() => onDialog({ kind: 'group', group: g })}>
+                Edit
+              </button>
+            </span>
+          )}
+        </div>
+      </li>
+    )
   }
 
   return (
@@ -281,6 +346,7 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
           <p className="muted small">
             {groupPath(c, group.id)} · {group.kind === 'deck' ? 'Deck' : group.kind === 'holding' ? 'In-between area' : group.kind === 'lent' ? 'Lent out' : 'Group'}
             {group.ordered ? ' · kept in order' : ''} · {count(c, group.id)}{group.capacity ? ` of ${group.capacity}` : ''} cards
+            {subs.length > 0 && ` (+${countAll(c, group.id) - count(c, group.id)} in ${subs.length} sub-group${subs.length > 1 ? 's' : ''})`}
           </p>
           {group.notes && <p className="muted">{group.notes}</p>}
         </div>
@@ -289,6 +355,11 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
             <button type="button" className="chip" onClick={() => setParams(new URLSearchParams({ view: 'search', add: group.id }))}>
               + Add cards
             </button>
+            {group.kind !== 'lent' && (
+              <button type="button" className="chip" onClick={() => onDialog({ kind: 'group', groupKind: 'storage', parentId: group.id })}>
+                + Sub-group
+              </button>
+            )}
             <button type="button" className="chip" onClick={() => onDialog({ kind: 'group', group })}>
               Edit
             </button>
@@ -345,9 +416,12 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
         </div>
       )}
 
+      {group.kind === 'deck' && subs.length > 0 && <ul className="results">{subs.map(subRow)}</ul>}
       {sections.map((section) => {
         const list = stacks.filter((s) => (section ? (s.section ?? 'main') === section : true))
         if (section && !list.length) return null
+        // In ordinary groups, cards and sub-groups share one list (and one order).
+        const rows: Item[] = section ? list.map((s) => ({ kind: 'stack', s, position: s.position ?? 0 })) : items
         return (
           <section key={section ?? 'all'}>
             {section && (
@@ -356,8 +430,10 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
               </h3>
             )}
             <ul className="results">
-              {list.map((s) => {
-                const i = stacks.indexOf(s)
+              {rows.map((item) => {
+                if (item.kind === 'group') return subRow(item.g)
+                const s = item.s
+                const i = items.findIndex((x) => x.kind === 'stack' && x.s.id === s.id)
                 const card = cardOf(ctx.searcher, s)
                 const twin = group.ordered ? stacks.find((o) => o.id !== s.id && o.card_key === s.card_key && o.custom_card_id === s.custom_card_id && detailText(o) === detailText(s) && o.availability === s.availability) : undefined
                 return (
@@ -375,16 +451,7 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
                       </span>
                       {!ctx.readOnly && (
                         <span className="row-actions">
-                          {group.ordered && (
-                            <>
-                              <button type="button" className="link" aria-label="Move up" disabled={i === 0} onClick={() => swap(i, i - 1)}>
-                                ↑
-                              </button>
-                              <button type="button" className="link" aria-label="Move down" disabled={i === stacks.length - 1} onClick={() => swap(i, i + 1)}>
-                                ↓
-                              </button>
-                            </>
-                          )}
+                          {arrows(i)}
                           {group.kind === 'lent' ? (
                             <button type="button" className="link" onClick={() => onDialog({ kind: 'giveback', stack: s })}>
                               Given back
@@ -423,7 +490,7 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
           </section>
         )
       })}
-      {!stacks.length && <p className="muted">No cards here yet.</p>}
+      {!stacks.length && !subs.length && <p className="muted">No cards here yet.</p>}
     </div>
   )
 }

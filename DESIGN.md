@@ -99,6 +99,10 @@ what the owner's profile allows (section 9).
 - **boxes**: `id`, `name`, `photo_path?`, `notes?`, `sort_order`.
 - **groups**: `id`, `box_id?` (null = stands alone, e.g. a binder or deck box), `row_label?` (a plain label inside the
   box), `name`, `kind`, `ordered` (defaults from the profile setting), `photo_path?`, `sort_order`.
+  - `parent_id?`, `position?` (added 2026-10-26, `0006_subgroups.sql`): **sub-groups**. A group can sit inside another
+    group, any depth, and hold cards and sub-groups at once. Sub-groups share their top group's box (moving a group
+    moves its sub-groups); in an ordered parent, cards and sub-groups share one order (↑/↓). No loops (app check plus
+    a database trigger); a group with sub-groups can't be deleted. CSV writes nested groups as "Binder › Page 1".
   - `kind = storage`: an ordinary group.
   - `kind = deck`: a deck. Its stacks carry a section (main / extra / side).
   - `kind = holding`: a "purgatory" in-between area. Each user starts with one and can add and name more.

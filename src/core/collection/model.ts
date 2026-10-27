@@ -34,6 +34,10 @@ export interface Group {
   sort_order: number
   /** How many cards fit (optional); used for placement suggestions. */
   capacity: number | null
+  /** The group this one sits inside (a sub-group), or null. Sub-groups share their top group's box. */
+  parent_id: string | null
+  /** Place among the cards and sub-groups of an ordered parent group. */
+  position: number | null
   version: number
 }
 
@@ -159,8 +163,41 @@ export class CollectionError extends Error {}
 export function groupPath(c: Collection, groupId: string | null | undefined): string {
   const g = groupId ? c.groups.get(groupId) : undefined
   if (!g) return 'removed'
-  const box = g.box_id ? c.boxes.get(g.box_id) : undefined
-  return [box?.name, g.row_label, g.name].filter(Boolean).join(' › ')
+  const chain = ancestorsOf(c, g.id).reverse()
+  const top = chain[0] ?? g
+  const box = top.box_id ? c.boxes.get(top.box_id) : undefined
+  return [box?.name, top.row_label, ...chain.map((x) => x.name), g.name].filter(Boolean).join(' › ')
+}
+
+/** Parent, grandparent, … of a group (nearest first). Stops on a loop, which the model never creates. */
+export function ancestorsOf(c: Collection, groupId: string): Group[] {
+  const out: Group[] = []
+  const seen = new Set([groupId])
+  let p = c.groups.get(groupId)?.parent_id
+  while (p && !seen.has(p)) {
+    const g = c.groups.get(p)
+    if (!g) break
+    out.push(g)
+    seen.add(p)
+    p = g.parent_id
+  }
+  return out
+}
+
+/** Direct sub-groups of a group. */
+export const childGroups = (c: Collection, groupId: string) => [...c.groups.values()].filter((g) => g.parent_id === groupId)
+
+/** A group and all its sub-groups, at any depth. */
+export function descendantsOf(c: Collection, groupId: string): Group[] {
+  const out: Group[] = []
+  const walk = (id: string) => {
+    for (const g of childGroups(c, id)) {
+      out.push(g)
+      walk(g.id)
+    }
+  }
+  walk(groupId)
+  return out
 }
 
 export interface AddInput {
@@ -238,9 +275,11 @@ export class Draft {
     })
   }
 
+  /** Next free place in an ordered group: cards and sub-groups share one order. */
   private nextPosition(groupId: string) {
     let max = 0
     for (const s of this.work.stacks.values()) if (s.group_id === groupId && s.position !== null) max = Math.max(max, s.position)
+    for (const g of this.work.groups.values()) if (g.parent_id === groupId && g.position !== null) max = Math.max(max, g.position)
     return max + 1
   }
 
@@ -315,8 +354,18 @@ export class Draft {
       photo_path: null,
       sort_order: Date.now(),
       capacity: null,
+      parent_id: null,
+      position: null,
       version: 1,
       ...extra,
+    }
+    if (g.parent_id) {
+      const parent = this.group(g.parent_id)
+      if (parent.kind === 'lent') throw new CollectionError("Lent out can't have sub-groups")
+      // sub-groups live in their top group's box
+      g.box_id = parent.box_id
+      g.row_label = null
+      g.position = parent.ordered ? this.nextPosition(parent.id) : null
     }
     this.set('groups', g)
     return g
@@ -326,19 +375,40 @@ export class Draft {
     const g = this.group(id)
     if (patch.name !== undefined && !patch.name.trim()) throw new CollectionError('A group needs a name')
     const next = { ...g, ...patch }
+    if (next.parent_id !== g.parent_id) {
+      if (next.parent_id) {
+        if (next.parent_id === id || descendantsOf(this.work, id).some((x) => x.id === next.parent_id))
+          throw new CollectionError("A group can't go inside itself or one of its own sub-groups")
+        const parent = this.group(next.parent_id)
+        if (parent.kind === 'lent') throw new CollectionError("Lent out can't have sub-groups")
+        next.box_id = parent.box_id
+        next.row_label = null
+        next.position = parent.ordered ? this.nextPosition(parent.id) : null
+      } else next.position = null
+    }
     this.set('groups', next)
-    // Switching to ordered gives existing stacks positions; switching off clears them.
+    // Sub-groups follow their group to another box.
+    if (next.box_id !== g.box_id)
+      for (const d of descendantsOf(this.work, id)) this.set('groups', { ...d, box_id: next.box_id })
+    // Switching to ordered gives existing cards and sub-groups places; switching off clears them.
     if (g.ordered !== next.ordered) {
       let pos = 1
       for (const s of [...this.work.stacks.values()].filter((x) => x.group_id === id))
         this.set('stacks', { ...s, position: next.ordered ? pos++ : null })
+      for (const c of childGroups(this.work, id)) this.set('groups', { ...c, position: next.ordered ? pos++ : null })
     }
   }
 
   deleteGroup(id: string) {
     if ([...this.work.stacks.values()].some((s) => s.group_id === id))
       throw new CollectionError('Move or remove the cards in this group first')
+    if (childGroups(this.work, id).length) throw new CollectionError('Move or delete the sub-groups in this group first')
     this.drop('groups', id)
+  }
+
+  /** Sets a sub-group's place in its ordered parent group. */
+  repositionGroup(groupId: string, position: number) {
+    this.set('groups', { ...this.group(groupId), position })
   }
 
   createCustomCard(name: string, fields: Record<string, string> = {}, notes = ''): CustomCard {
@@ -409,8 +479,11 @@ export class Draft {
     const s = this.stack(stackId)
     if (qty >= s.qty) throw new CollectionError('Split off fewer copies than the stack has')
     this.take(stackId, qty)
-    const after = [...this.work.stacks.values()]
-      .filter((x) => x.group_id === s.group_id && x.position !== null && s.position !== null && x.position > s.position)
+    const after = [
+      ...[...this.work.stacks.values()].filter((x) => x.group_id === s.group_id),
+      ...childGroups(this.work, s.group_id),
+    ]
+      .filter((x) => x.position !== null && s.position !== null && x.position > s.position)
       .reduce((m, x) => Math.min(m, x.position!), Infinity)
     const created: Stack = {
       ...s,

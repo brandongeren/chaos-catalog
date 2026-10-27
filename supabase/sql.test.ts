@@ -136,6 +136,27 @@ describe('apply_ops', () => {
     expect(history).toHaveLength(4)
   })
 
+  it('sub-groups round-trip and loops are refused even if the app is bypassed', async () => {
+    let local = await loadCollection(ALICE)
+    const d = new Draft(local, () => 'x')
+    const top = d.createGroup('Binder', { ordered: true })
+    const sub = d.createGroup('Page 1', { parent_id: top.id })
+    const op = d.finish('create', 'create')
+    expect((await applyOps(ALICE, [op]))[0].status).toBe('applied')
+    local = applyOp(local, op)
+    expect((await loadCollection(ALICE)).groups.get(sub.id)).toEqual(local.groups.get(sub.id))
+    const loop: Op = {
+      client_op_id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      type: 'edit',
+      summary: { text: 'loop' },
+      expect: [{ t: 'groups', id: top.id, v: 1 }],
+      put: [{ t: 'groups', row: { ...local.groups.get(top.id)!, parent_id: sub.id } }],
+      del: [],
+    }
+    await expect(applyOps(ALICE, [loop])).rejects.toThrow(/inside itself/)
+  })
+
   it('cannot touch another user\'s rows or skip expect', async () => {
     const aliceGroups = await loadCollection(ALICE)
     const g = [...aliceGroups.groups.values()][0]
@@ -170,7 +191,7 @@ describe('apply_ops', () => {
     await as(ALICE, () => db.query('update public.profiles set profile_public = false where id = $1', [ALICE]))
     expect(await anonSees()).toEqual({ stacks: 0, groups: 0 })
     const own = await as(ALICE, async () => (await db.query(`select id from public.groups where owner_id = '${ALICE}'`)).rows.length)
-    expect(own).toBe(2)
+    expect(own).toBe(4) // Unsorted, A, and the sub-group test's Binder + Page 1
     const ops = await as(BOB, async () => (await db.query(`select id from public.operations where owner_id = '${ALICE}'`)).rows.length)
     expect(ops).toBe(0)
   })

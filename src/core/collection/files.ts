@@ -2,7 +2,7 @@
 // Imports never reuse ids from the file (they could belong to someone else): everything gets new ids, and large
 // imports are split into several ops so each request stays small.
 
-import { applyOp, Draft, groupPath, uuid, type Box, type Collection, type CustomCard, type Group, type Op, type Stack } from './model.ts'
+import { ancestorsOf, applyOp, Draft, groupPath, uuid, type Box, type Collection, type CustomCard, type Group, type Op, type Stack } from './model.ts'
 
 export const JSON_FORMAT = 'chaos-catalog-collection'
 const CHUNK = 400
@@ -53,7 +53,14 @@ export function importJsonOps(c: Collection, file: CollectionFile, nameOf: NameO
   const ids = new Map<string, string>()
   const d = new Draft(state, nameOf)
   for (const b of file.boxes) ids.set(b.id, d.createBox(b.name, { notes: b.notes ?? '', sort_order: b.sort_order ?? Date.now() }).id)
-  for (const g of file.groups) {
+  // Parents before their sub-groups, keeping the file's order otherwise.
+  const pending = [...file.groups].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+  const ordered: Group[] = []
+  while (pending.length) {
+    const i = pending.findIndex((g) => !g.parent_id || ordered.some((o) => o.id === g.parent_id) || !file.groups.some((x) => x.id === g.parent_id))
+    ordered.push(...pending.splice(i < 0 ? 0 : i, 1))
+  }
+  for (const g of ordered) {
     // An existing in-between or lent-out area with the same name absorbs the file's one.
     const same = [...state.groups.values()].find((x) => (x.kind === 'holding' || x.kind === 'lent') && x.kind === g.kind && x.name === g.name)
     ids.set(
@@ -66,6 +73,8 @@ export function importJsonOps(c: Collection, file: CollectionFile, nameOf: NameO
           ordered: g.ordered,
           notes: g.notes ?? '',
           sort_order: g.sort_order ?? Date.now(),
+          capacity: g.capacity ?? null,
+          parent_id: g.parent_id ? (ids.get(g.parent_id) ?? null) : null,
         }).id,
     )
   }
@@ -137,7 +146,9 @@ export function toCsv(c: Collection, nameOf: NameOf): string {
   const stacks = [...c.stacks.values()].sort((a, b) => groupPath(c, a.group_id).localeCompare(groupPath(c, b.group_id)) || nameOf(a).localeCompare(nameOf(b)))
   for (const s of stacks) {
     const g = c.groups.get(s.group_id)
-    const box = g?.box_id ? c.boxes.get(g.box_id) : undefined
+    const chain = g ? [...ancestorsOf(c, g.id).reverse(), g] : []
+    const top = chain[0]
+    const box = top?.box_id ? c.boxes.get(top.box_id) : undefined
     const row: Record<string, unknown> = {
       name: nameOf(s),
       passcode: s.card_key ?? '',
@@ -148,8 +159,9 @@ export function toCsv(c: Collection, nameOf: NameOf): string {
       language: s.language,
       condition: s.condition,
       box: box?.name,
-      row: g?.row_label,
-      group: g?.name,
+      row: top?.row_label,
+      // sub-groups as a path: "Binder › Page 1"
+      group: chain.map((x) => x.name).join(' › '),
       group_type: g?.kind,
       deck_section: s.section,
       availability: s.availability === 'none' ? '' : s.availability,
@@ -226,7 +238,12 @@ export function importCsvOps(c: Collection, rows: CsvRow[], resolve: (passcode: 
   const boxByName = new Map([...state.boxes.values()].map((b) => [b.name.toLowerCase(), b.id]))
   const groupKey = (box: string | undefined, row: string | undefined, group: string) => `${(box ?? '').toLowerCase()}|${(row ?? '').toLowerCase()}|${group.toLowerCase()}`
   const groupByKey = new Map(
-    [...state.groups.values()].map((g) => [groupKey(g.box_id ? state.boxes.get(g.box_id)?.name : '', g.row_label ?? '', g.name), g.id]),
+    [...state.groups.values()].map((g) => {
+      const chain = [...ancestorsOf(state, g.id).reverse(), g]
+      const top = chain[0]
+      const path = chain.map((x) => x.name.toLowerCase()).join('›')
+      return [groupKey(top.box_id ? state.boxes.get(top.box_id)?.name : '', top.row_label ?? '', path), g.id]
+    }),
   )
   const fallback = [...state.groups.values()].find((g) => g.kind === 'holding')?.id
   const groupFor = new Map<number, string>()
@@ -237,19 +254,28 @@ export function importCsvOps(c: Collection, rows: CsvRow[], resolve: (passcode: 
       groupFor.set(line, id)
       continue
     }
-    const k = groupKey(r.box, r.row, groupName)
-    let id = groupByKey.get(k)
-    if (!id) {
-      let boxId: string | null = null
-      if (r.box?.trim()) {
-        boxId = boxByName.get(r.box.trim().toLowerCase()) ?? d.createBox(r.box.trim()).id
-        boxByName.set(r.box.trim().toLowerCase(), boxId)
+    // "Binder › Page 1" = sub-group Page 1 inside Binder; each level is found by name or created.
+    const names = groupName.split('›').map((x) => x.trim()).filter(Boolean)
+    let parentId: string | null = null
+    let path = ''
+    for (const [level, part] of names.entries()) {
+      path = path ? `${path}›${part.toLowerCase()}` : part.toLowerCase()
+      const k = groupKey(r.box, r.row, path)
+      let id = groupByKey.get(k)
+      if (!id) {
+        let boxId: string | null = null
+        if (!parentId && r.box?.trim()) {
+          boxId = boxByName.get(r.box.trim().toLowerCase()) ?? d.createBox(r.box.trim()).id
+          boxByName.set(r.box.trim().toLowerCase(), boxId)
+        }
+        const last = level === names.length - 1
+        const kind = (last && (['storage', 'deck', 'holding'] as const).find((x) => x === r.group_type)) || 'storage'
+        id = d.createGroup(part, parentId ? { parent_id: parentId, kind } : { box_id: boxId, row_label: r.row?.trim() || null, kind }).id
+        groupByKey.set(k, id)
       }
-      const kind = (['storage', 'deck', 'holding'] as const).find((x) => x === r.group_type) ?? 'storage'
-      id = d.createGroup(groupName, { box_id: boxId, row_label: r.row?.trim() || null, kind }).id
-      groupByKey.set(k, id)
+      parentId = id
     }
-    groupFor.set(line, id)
+    groupFor.set(line, parentId!)
   }
   let op = d.finish('import', 'Imported a CSV file: boxes and groups', { batch_id })
   if (op.put.length) {
