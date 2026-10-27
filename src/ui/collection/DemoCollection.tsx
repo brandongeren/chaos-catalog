@@ -46,6 +46,7 @@ function sample(searcher: Searcher): Collection {
   d.add({ card_key: key('Dark Magician'), qty: 1, details: { note: 'signed' } }, page.id)
   d.add({ card_key: key('Ash Blossom & Joyous Spring'), qty: 1 }, binder.id)
   d.add({ card_key: key('Called by the Grave'), qty: 1 }, deck.id)
+  d.add({ card_key: key('Cyberse Code Magician'), qty: 1, details: { set_code: 'MAMO-EN017', rarity: 'New' } }, a.id)
   c = applyOp(c, d.finish('demo', 'demo'))
   return c
 }
@@ -60,6 +61,7 @@ const DEMO_OWNER: Profile = {
   show_locations: true,
   show_prices: true,
   group_ordered_default: false,
+  default_availability: 'none',
 }
 
 export default function DemoCollection({ searcher }: { searcher: Searcher }) {

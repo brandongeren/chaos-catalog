@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyOp, conflictOf, Draft, emptyCollection, groupPath, suggestPlaces, type Collection, type Stack } from './model.ts'
+import { applyOp, conflictOf, defaultAvailability, Draft, emptyCollection, groupPath, suggestPlaces, type Collection, type Stack } from './model.ts'
 
 const nameOf = (s: Pick<Stack, 'card_key' | 'custom_card_id'>) => (s.card_key === '14558127' ? 'Ash Blossom' : s.card_key ?? 'custom')
 
@@ -200,6 +200,26 @@ describe('Draft', () => {
     op = d.finish('qty', 'qty')
     expect(op.summary.cards?.[0]).toMatchObject({ qty: 1, from: ordered.id, to: null })
     expect(() => new Draft(c, nameOf).setQty(s.id, 0)).toThrow(/Remove/)
+  })
+
+  it('new cards take the nearest availability default: group, parent, box, account', () => {
+    let { c, box, a } = setup()
+    let d = new Draft(c, nameOf)
+    d.updateBox(box.id, { default_availability: 'trade' })
+    const sub = d.createGroup('Sub', { parent_id: a.id })
+    const loose = d.createGroup('Loose')
+    c = applyOp(c, d.finish('setup', 'setup'))
+    expect(defaultAvailability(c, sub.id, 'borrow')).toBe('trade') // box
+    expect(defaultAvailability(c, loose.id, 'borrow')).toBe('borrow') // account
+    d = new Draft(c, nameOf, { defaultAvailability: 'borrow' })
+    d.updateGroup(a.id, { default_availability: 'none' })
+    const inSub = d.add({ card_key: '1', qty: 1 }, sub.id)
+    const explicit = d.add({ card_key: '1', qty: 1, availability: 'trade' }, sub.id)
+    const inLoose = d.add({ card_key: '2', qty: 1 }, loose.id)
+    c = applyOp(c, d.finish('add', 'add'))
+    expect(c.stacks.get(inSub.id)?.availability).toBe('none') // parent group beats box
+    expect(c.stacks.get(explicit.id)?.availability).toBe('trade')
+    expect(c.stacks.get(inLoose.id)?.availability).toBe('borrow')
   })
 
   it('refuses impossible edits', () => {

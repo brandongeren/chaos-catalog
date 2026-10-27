@@ -18,6 +18,8 @@ export interface Profile {
   show_locations: boolean
   show_prices: boolean
   group_ordered_default: boolean
+  /** Borrow/trade availability for newly added cards (boxes and groups can override). */
+  default_availability?: 'none' | 'borrow' | 'trade'
 }
 
 export function requireSupabase(): SupabaseClient {

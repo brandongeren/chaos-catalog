@@ -41,7 +41,7 @@ export async function change(
   opts: { batch_id?: string } = {},
 ): Promise<string | undefined> {
   const c = ctx.store.collection
-  const d = new Draft(c, (s) => nameOfStack(ctx.searcher, c, s))
+  const d = new Draft(c, (s) => nameOfStack(ctx.searcher, c, s), { defaultAvailability: ctx.owner.default_availability ?? 'none' })
   try {
     edit(d)
   } catch (err) {

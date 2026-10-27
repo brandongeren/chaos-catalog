@@ -4,6 +4,7 @@ import {
   CONDITIONS,
   EDITIONS,
   descendantsOf,
+  defaultAvailability,
   groupPath,
   suggestPlaces,
   type Availability,
@@ -24,6 +25,23 @@ import { QtyInput } from '../QtyInput.tsx'
 import { LANGUAGES } from './labels.ts'
 import { change, nameOfStack, useCollection, useCollectionContext } from './context.ts'
 
+
+/** A box/group default: null = use the next level up. */
+function DefaultAvailabilitySelect({ value, onChange, inherit }: { value: Availability | null; onChange: (v: Availability | null) => void; inherit: string }) {
+  return (
+    <label className="field">
+      <span>Borrow / trade for new cards added here</span>
+      <select value={value ?? ''} onChange={(e) => onChange((e.target.value || null) as Availability | null)}>
+        <option value="">Same as {inherit}</option>
+        {AVAILABILITY.map(([v, l]) => (
+          <option key={v} value={v}>
+            {l}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
 
 const AVAILABILITY: [Availability, string][] = [
   ['none', 'Not available'],
@@ -216,7 +234,8 @@ export function AddCardDialog({ card, onClose, initialGroup }: { card: YgoCard; 
   const [groupId, setGroupId] = useState(initialGroup ?? localStorage.getItem('lastGroup') ?? fallback)
   const [qty, setQty] = useState<number | null>(1)
   const [details, setDetails] = useState<Details>({ set_code: null, rarity: null, edition: null, language: 'en', condition: null, note: '' })
-  const [availability, setAvailability] = useState<Availability>('none')
+  // undefined = the group's default (resolved when adding)
+  const [availability, setAvailability] = useState<Availability | undefined>()
   const [section, setSection] = useState<Section>(defaultSection(card))
   const { busy, error, submit } = useSubmit(onClose)
   const target = c.groups.get(groupId)
@@ -255,7 +274,10 @@ export function AddCardDialog({ card, onClose, initialGroup }: { card: YgoCard; 
         <DetailsFields card={card} value={details} onChange={setDetails} />
         <label className="field">
           <span>Borrow / trade</span>
-          <select value={availability} onChange={(e) => setAvailability(e.target.value as Availability)}>
+          <select value={availability ?? ''} onChange={(e) => setAvailability((e.target.value || undefined) as Availability | undefined)}>
+            <option value="">
+              Default here ({AVAILABILITY.find(([v]) => v === defaultAvailability(c, groupId, ctx.owner.default_availability ?? 'none'))?.[1]})
+            </option>
             {AVAILABILITY.map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -461,6 +483,7 @@ export function BoxDialog({ box, onClose }: { box?: Box; onClose: () => void }) 
   const ctx = useCollectionContext()
   const [name, setName] = useState(box?.name ?? '')
   const [notes, setNotes] = useState(box?.notes ?? '')
+  const [avail, setAvail] = useState<Availability | null>(box?.default_availability ?? null)
   const [file, setFile] = useState<File | null>()
   const { busy, error, submit } = useSubmit(onClose)
   return (
@@ -470,8 +493,8 @@ export function BoxDialog({ box, onClose }: { box?: Box; onClose: () => void }) 
         onSubmit={submit(async () => {
           const photo_path = await resolvePhoto(ctx.owner.id, box?.photo_path ?? null, file)
           return box
-            ? change(ctx, 'edit_box', `Edited box ${name}`, (d) => d.updateBox(box.id, { name, notes, photo_path }))
-            : change(ctx, 'create_box', `Created box ${name}`, (d) => void d.createBox(name, { notes, photo_path }))
+            ? change(ctx, 'edit_box', `Edited box ${name}`, (d) => d.updateBox(box.id, { name, notes, photo_path, default_availability: avail }))
+            : change(ctx, 'create_box', `Created box ${name}`, (d) => void d.createBox(name, { notes, photo_path, default_availability: avail }))
         })}
       >
         <label className="field">
@@ -482,6 +505,7 @@ export function BoxDialog({ box, onClose }: { box?: Box; onClose: () => void }) 
           <span>Notes</span>
           <input value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
+        <DefaultAvailabilitySelect value={avail} onChange={setAvail} inherit="your account" />
         <PhotoField path={box?.photo_path ?? null} onChange={setFile} />
         <Actions busy={busy} label={box ? 'Save' : 'Create'} error={error}>
           {box && (
@@ -514,6 +538,7 @@ export function GroupDialog({ group, kind, boxId, parentId, onClose }: { group?:
   const [notes, setNotes] = useState(group?.notes ?? '')
   const [capacity, setCapacity] = useState(group?.capacity ? String(group.capacity) : '')
   const [parent, setParent] = useState<string>(group?.parent_id ?? parentId ?? '')
+  const [avail, setAvail] = useState<Availability | null>(group?.default_availability ?? null)
   const [file, setFile] = useState<File | null>()
   const { busy, error, submit } = useSubmit(onClose)
   const rows = [...new Set([...c.groups.values()].filter((g) => g.box_id === box && g.row_label).map((g) => g.row_label!))]
@@ -530,7 +555,7 @@ export function GroupDialog({ group, kind, boxId, parentId, onClose }: { group?:
         className="stack-form"
         onSubmit={submit(async () => {
           const photo_path = await resolvePhoto(ctx.owner.id, group?.photo_path ?? null, file)
-          const fields = { name, box_id: box || null, row_label: row.trim() || null, kind: groupKind, ordered, notes, photo_path, capacity: Number(capacity) > 0 ? Math.floor(Number(capacity)) : null, parent_id: parent || null }
+          const fields = { name, box_id: box || null, row_label: row.trim() || null, kind: groupKind, ordered, notes, photo_path, capacity: Number(capacity) > 0 ? Math.floor(Number(capacity)) : null, parent_id: parent || null, default_availability: avail }
           return group
             ? change(ctx, 'edit_group', `Edited ${name}`, (d) => d.updateGroup(group.id, fields))
             : change(ctx, 'create_group', `Created ${KIND_LABEL[groupKind].toLowerCase()} ${name}`, (d) => void d.createGroup(name, fields))
@@ -600,6 +625,9 @@ export function GroupDialog({ group, kind, boxId, parentId, onClose }: { group?:
           <span>Notes</span>
           <input value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
+        {groupKind !== 'lent' && (
+          <DefaultAvailabilitySelect value={avail} onChange={setAvail} inherit={parent ? 'the group it is in' : box ? 'its box' : 'your account'} />
+        )}
         <PhotoField path={group?.photo_path ?? null} onChange={setFile} />
         <Actions busy={busy} label={group ? 'Save' : 'Create'} error={error}>
           {group && (
@@ -730,6 +758,50 @@ export function GiveBackDialog({ stack, onClose }: { stack: Stack; onClose: () =
           <GroupSelect value={to} onChange={setTo} />
         </label>
         <Actions busy={busy} label="Done" error={error} />
+      </form>
+    </Modal>
+  )
+}
+
+/** Sets borrow/trade on every card in some groups (a group with its sub-groups, or a whole box). */
+export function AvailabilityAllDialog({ title, groupIds, onClose }: { title: string; groupIds: string[]; onClose: () => void }) {
+  const ctx = useCollectionContext()
+  const c = useCollection(ctx.store)
+  const [availability, setAvailability] = useState<Availability>('trade')
+  const [alsoDefault, setAlsoDefault] = useState(true)
+  const { busy, error, submit } = useSubmit(onClose)
+  const ids = new Set(groupIds)
+  const stacks = [...c.stacks.values()].filter((s) => ids.has(s.group_id))
+  const cards = stacks.reduce((n, s) => n + s.qty, 0)
+  const label = AVAILABILITY.find(([v]) => v === availability)![1].toLowerCase()
+  return (
+    <Modal title={title} onClose={onClose}>
+      <form
+        className="stack-form"
+        onSubmit={submit(() =>
+          change(ctx, 'bulk_edit', `${title}: ${cards} cards ${label}`, (d) => {
+            for (const s of stacks) if (s.availability !== availability) d.edit(s.id, s.qty, { availability })
+            if (alsoDefault) for (const id of groupIds) d.updateGroup(id, { default_availability: availability })
+          }),
+        )}
+      >
+        <p className="small">
+          {cards} card{cards === 1 ? '' : 's'} in {groupIds.length} group{groupIds.length === 1 ? '' : 's'}.
+        </p>
+        <label className="field">
+          <span>Make them</span>
+          <select value={availability} onChange={(e) => setAvailability(e.target.value as Availability)}>
+            {AVAILABILITY.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={alsoDefault} onChange={(e) => setAlsoDefault(e.target.checked)} /> Also use this for cards added here later
+        </label>
+        <Actions busy={busy} label="Apply" error={error} />
       </form>
     </Modal>
   )

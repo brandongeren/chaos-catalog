@@ -6,3 +6,6 @@
  * (e.g. Quarter Century Secret Rare) have no code.
  */
 export const printingKey = (id: number, setCode: string, rarity: string) => `${id}|${setCode}|${rarity}`
+
+/** YGOPRODeck's stand-in rarities for printings it hasn't filled in yet ("New", or a bare number). */
+export const isPlaceholderRarity = (r: string) => /^(new|\d+)$/i.test(r.trim())

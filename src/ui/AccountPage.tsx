@@ -140,6 +140,7 @@ function Settings({
         show_locations: draft.show_locations,
         show_prices: draft.show_prices,
         group_ordered_default: draft.group_ordered_default,
+        default_availability: draft.default_availability ?? 'none',
       })
       .eq('id', draft.id)
     onMessage(error ? { ok: false, text: error.message } : { ok: true, text: 'Saved.' })
@@ -192,6 +193,14 @@ function Settings({
         {check('show_locations', 'Show where cards are stored (boxes and groups) to others')}
         {check('show_prices', 'Show prices and collection value to others')}
         {check('group_ordered_default', 'New groups keep cards in a set order by default')}
+        <label className="field">
+          <span>New cards are, unless a box or group says otherwise</span>
+          <select value={draft.default_availability ?? 'none'} onChange={(e) => setDraft({ ...draft, default_availability: e.target.value as 'none' | 'borrow' | 'trade' })}>
+            <option value="none">Not available</option>
+            <option value="borrow">Available to borrow</option>
+            <option value="trade">Available to trade</option>
+          </select>
+        </label>
         <button className="primary">Save</button>
       </form>
       {message && <p className={message.ok ? 'ok' : 'error'}>{message.text}</p>}

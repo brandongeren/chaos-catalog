@@ -19,6 +19,8 @@ export interface Box {
   notes: string
   photo_path: string | null
   sort_order: number
+  /** Availability for cards added here (null = use the account's). */
+  default_availability: Availability | null
   version: number
 }
 
@@ -38,6 +40,8 @@ export interface Group {
   parent_id: string | null
   /** Place among the cards and sub-groups of an ordered parent group. */
   position: number | null
+  /** Availability for cards added here (null = parent group's, else the box's, else the account's). */
+  default_availability: Availability | null
   version: number
 }
 
@@ -222,9 +226,15 @@ export class Draft {
   readonly lines: CardLine[] = []
 
   private readonly nameOf: (s: Pick<Stack, 'game' | 'card_key' | 'custom_card_id'>) => string
+  private readonly accountAvailability: Availability
 
-  constructor(collection: Collection, nameOf: (s: Pick<Stack, 'game' | 'card_key' | 'custom_card_id'>) => string) {
+  constructor(
+    collection: Collection,
+    nameOf: (s: Pick<Stack, 'game' | 'card_key' | 'custom_card_id'>) => string,
+    opts: { defaultAvailability?: Availability } = {},
+  ) {
     this.nameOf = nameOf
+    this.accountAvailability = opts.defaultAvailability ?? 'none'
     this.base = collection
     this.work = {
       boxes: new Map(collection.boxes),
@@ -326,7 +336,7 @@ export class Draft {
 
   createBox(name: string, extra: Partial<Omit<Box, 'id' | 'version'>> = {}): Box {
     if (!name.trim()) throw new CollectionError('A box needs a name')
-    const box: Box = { id: uuid(), name: name.trim(), notes: '', photo_path: null, sort_order: Date.now(), version: 1, ...extra }
+    const box: Box = { id: uuid(), name: name.trim(), notes: '', photo_path: null, sort_order: Date.now(), default_availability: null, version: 1, ...extra }
     this.set('boxes', box)
     return box
   }
@@ -359,6 +369,7 @@ export class Draft {
       capacity: null,
       parent_id: null,
       position: null,
+      default_availability: null,
       version: 1,
       ...extra,
     }
@@ -434,7 +445,7 @@ export class Draft {
       ...noDetails(),
       ...input.details,
       section: g.kind === 'deck' ? (input.section ?? 'main') : null,
-      availability: input.availability ?? 'none',
+      availability: input.availability ?? defaultAvailability(this.work, groupId, this.accountAvailability),
       lent_to_user: null,
       lent_to_name: input.loan?.lent_to_name ?? null,
       lent_due: input.loan?.lent_due ?? null,
@@ -634,4 +645,14 @@ export function suggestPlaces(c: Collection, qty: number, limit = 3): { group: G
     .filter((x) => x.free >= qty)
     .sort((a, b) => b.free - a.free)
     .slice(0, limit)
+}
+
+/** Availability for new cards in a group: the group's default, else its parent groups', else its box's, else the account's. */
+export function defaultAvailability(c: Collection, groupId: string, account: Availability = 'none'): Availability {
+  const g = c.groups.get(groupId)
+  if (!g) return account
+  for (const x of [g, ...ancestorsOf(c, groupId)]) if (x.default_availability) return x.default_availability
+  const top = ancestorsOf(c, groupId).at(-1) ?? g
+  const box = top.box_id ? c.boxes.get(top.box_id) : undefined
+  return box?.default_availability ?? account
 }

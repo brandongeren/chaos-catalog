@@ -4,6 +4,7 @@ import { photoUrl } from '../../core/supabase.ts'
 import { useUrlParams } from '../../lib/useUrlParams.ts'
 import { summary } from '../../games/ygo/classify.ts'
 import { Modal } from '../Modal.tsx'
+import { PlaceholderRepair } from './PlaceholderRepair.tsx'
 import { usePrices } from '../pricesContext.ts'
 import { stackPrice } from '../../games/ygo/prices.ts'
 import { money } from '../../games/ygo/ui/format.ts'
@@ -15,6 +16,7 @@ import {
   BoxDialog,
   CustomCardDialog,
   EditStackDialog,
+  AvailabilityAllDialog,
   GiveBackDialog,
   LendDialog,
   GroupDialog,
@@ -32,6 +34,7 @@ type Dialog =
   | { kind: 'custom' }
   | { kind: 'bulk-move'; stacks: Stack[] }
   | { kind: 'move-groups'; groups: Group[] }
+  | { kind: 'availability'; title: string; groupIds: string[] }
 
 const count = (c: Collection, groupId: string) => {
   let n = 0
@@ -191,6 +194,7 @@ export function CollectionPage() {
       </aside>
 
       <section className="pane">
+        <PlaceholderRepair />
         {selectedGroup && c.groups.get(selectedGroup) ? (
           <GroupView group={c.groups.get(selectedGroup)!} onDialog={setDialog} />
         ) : selectedBox && c.boxes.get(selectedBox) ? (
@@ -215,6 +219,7 @@ export function CollectionPage() {
       {dialog?.kind === 'giveback' && <GiveBackDialog stack={dialog.stack} onClose={() => setDialog(undefined)} />}
       {dialog?.kind === 'bulk-move' && <BulkMoveDialog stacks={dialog.stacks} onClose={() => setDialog(undefined)} />}
       {dialog?.kind === 'move-groups' && <MoveGroupsDialog groups={dialog.groups} onClose={() => setDialog(undefined)} />}
+      {dialog?.kind === 'availability' && <AvailabilityAllDialog title={dialog.title} groupIds={dialog.groupIds} onClose={() => setDialog(undefined)} />}
     </div>
   )
 }
@@ -248,6 +253,13 @@ function BoxView({ box, onDialog, onOpenGroup }: { box: Box; onDialog: (d: Dialo
             </button>
             <button type="button" className="chip" onClick={() => onDialog({ kind: 'box', box })}>
               Edit box
+            </button>
+            <button
+              type="button"
+              className="chip"
+              onClick={() => onDialog({ kind: 'availability', title: `Borrow / trade for everything in ${box.name}`, groupIds: groups.flatMap((g) => withSubs(c, g.id)) })}
+            >
+              Borrow / trade…
             </button>
           </div>
         )}
@@ -407,6 +419,15 @@ function GroupView({ group, onDialog }: { group: Group; onDialog: (d: Dialog) =>
             <button type="button" className="chip" onClick={() => onDialog({ kind: 'group', group })}>
               Edit
             </button>
+            {group.kind !== 'lent' && (
+              <button
+                type="button"
+                className="chip"
+                onClick={() => onDialog({ kind: 'availability', title: `Borrow / trade for everything in ${group.name}`, groupIds: withSubs(c, group.id) })}
+              >
+                Borrow / trade…
+              </button>
+            )}
             {group.kind === 'deck' && stacks.length > 0 && (
               <>
                 <button type="button" className="chip" onClick={() => download(`${group.name.replace(/[^\w -]+/g, '') || 'deck'}.ydk`, toYdk(rawDeckOf(stacks)))}>

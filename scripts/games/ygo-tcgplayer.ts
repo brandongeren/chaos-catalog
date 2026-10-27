@@ -9,7 +9,7 @@
 //   `modifiedOn` changed.
 
 import type { YgoCard } from '../../src/games/ygo/types.ts'
-import { printingKey } from '../../src/games/ygo/keys.ts'
+import { isPlaceholderRarity, printingKey } from '../../src/games/ygo/keys.ts'
 
 const BASE = 'https://tcgcsv.com'
 const CATEGORY = 2 // YuGiOh
@@ -197,8 +197,6 @@ export function addTcgPrintings(cache: ProductCache, match: Map<number, ProductM
   return added
 }
 
-/** YGOPRODeck's stand-in rarities for printings it hasn't filled in yet ("New", or a bare number). */
-export const isPlaceholderRarity = (r: string) => /^(new|\d+)$/i.test(r.trim())
 
 /** Drops placeholder rarities where the same set code has real ones (from YGOPRODeck or TCGplayer). */
 export function dropPlaceholders(cards: YgoCard[]) {
