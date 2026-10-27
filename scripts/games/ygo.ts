@@ -1,7 +1,7 @@
 // Yu-Gi-Oh! data builder: YGOPRODeck API -> catalog.json and meta.json; TCGCSV (TCGplayer) -> prices/<date>.json.
 //
-// YGOPRODeck: two requests per run (checkDBVer, then cardinfo with format=genesys, which returns every card plus
-// genesys_points; DESIGN.md §15). Its API guide asks for a local copy of the data and at most 20 requests/second.
+// YGOPRODeck: three requests per run (checkDBVer; cardinfo with format=genesys, which returns every card plus
+// genesys_points; cardsets for set release dates; DESIGN.md §15). Its API guide asks for a local copy of the data and at most 20 requests/second.
 // Prices come from TCGCSV instead of YGOPRODeck's set_price, which is zero for most printings and often stale.
 
 import type { BanStatus, YgoCard, YgoCatalog, YgoMeta, YgoPriceDay, YgoPrinting } from '../../src/games/ygo/types.ts'
@@ -197,6 +197,22 @@ export async function buildYgo(
     console.log(`ygo: ${Object.keys(printing).length} printings priced from ${requests} price file(s); ${collisions} duplicate listing(s)`)
   }
   console.log(`ygo: ${addTcgPrintings(products, match)} TCGplayer-only printing(s) added to the catalog`)
+
+  // Some cards are out in the TCG but YGOPRODeck has neither their TCG date nor their English printing (e.g.
+  // "Artmage Pact -Awakening-", printed as DUAD-EN075, which only TCGplayer lists). Without a date they'd be hidden
+  // as OCG-only, so take the earliest release date of the sets their printings come from.
+  const sets = await getJson<{ set_code: string; tcg_date?: string }[]>(`${API}/cardsets.php`)
+  const setDate = new Map(sets.filter((s) => s.tcg_date).map((s) => [s.set_code, s.tcg_date!]))
+  let dated = 0
+  for (const c of cards) {
+    if (c.tcg || !c.p?.length) continue
+    const dates = c.p.map((p) => setDate.get(p.c.split('-')[0])).filter((d): d is string => !!d).sort()
+    if (dates.length) {
+      c.tcg = dates[0]
+      dated++
+    }
+  }
+  console.log(`ygo: ${dated} card(s) without a YGOPRODeck TCG date dated from their printings' sets`)
 
   // Carry forward earlier days: from the published site first, else from a previous local build.
   for (const d of prevMeta?.priceDays ?? []) {

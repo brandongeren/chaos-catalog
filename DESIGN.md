@@ -399,6 +399,10 @@ Syntax search could move earlier (after phase 1) if you want it sooner.
   makes the extra run harmless. GitHub also disables schedules on public repos after 60 days without commits, which
   would stop the data updates and the Supabase keep-awake ping. The site shows a notice when data is over 3 days old.
 
+- **Missing TCG dates (2026-10-26):** 27 cards had no TCG date and no English printing in YGOPRODeck, though TCGplayer
+  lists them (e.g. Artmage Pact -Awakening-, DUAD-EN075), so they were hidden as OCG-only. The builder now dates such
+  cards from their printings' sets (YGOPRODeck `cardsets.php` `tcg_date`, matched by set code prefix).
+
 ## 16. Still open
 
 - OCR accuracy on real photos (foils, lighting, several cards per photo). **Tabled** until phase 9; needs sample photos.
