@@ -1,6 +1,6 @@
-// A small price file for Cost Down (the deck-pricing browser extension, ~/claude/cost-down): every card's name, Konami
-// id, alternate passcodes and cheapest TCGplayer market price, from the newest price day. The extension downloads
-// it at most once a day instead of the 11.6 MB catalog plus a 2.7 MB price file.
+// A small price file for Cost Down (the deck-pricing browser extension, ~/claude/cost-down): every card's name, frame
+// type, Konami id, alternate passcodes and cheapest TCGplayer market price, from the newest price day. The extension
+// downloads it at most once a day instead of the 11.6 MB catalog plus a 2.7 MB price file.
 
 import type { YgoCatalog, YgoPriceDay } from '../../src/games/ygo/types.ts'
 
@@ -15,6 +15,8 @@ export interface CostDownCard {
   kid?: number
   /** Alternate-artwork passcodes. */
   alt?: number[]
+  /** YGOPRODeck frame type ("effect", "spell", "trap", "fusion", ...): which deck table a card goes in. */
+  f: string
 }
 
 export interface CostDownFile {
@@ -29,7 +31,7 @@ export function costDownFile(catalog: YgoCatalog, day: YgoPriceDay | undefined):
     date: day?.date ?? null,
     dbVersion: catalog.dbVersion,
     cards: catalog.cards.map((c) => {
-      const out: CostDownCard = { id: c.id, n: c.n }
+      const out: CostDownCard = { id: c.id, n: c.n, f: c.f }
       const p = day?.card[c.id]
       if (p !== undefined) out.p = p
       if (c.kid) out.kid = c.kid

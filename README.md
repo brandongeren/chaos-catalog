@@ -41,7 +41,7 @@ If `npm install` fails with `Cannot read properties of null (reading 'edgesOut')
   [TCGCSV](https://tcgcsv.com) (thanks!), dated by TCGCSV's update. The last 28 days are kept; older files are deleted.
 - `tcgplayer-products.json`: which TCGplayer product is which printing; the next run reads it back and only re-fetches
   sets that changed.
-- `cost-down.json`: every card's name, Konami id, alternate passcodes and cheapest market price from the newest
+- `cost-down.json`: every card's name, frame type, Konami id, alternate passcodes and cheapest market price from the newest
   price day, for the [Cost Down](https://github.com/brandongeren/cost-down) browser extension (about 1 MB instead of the
   catalog plus a price file).
 - `meta.json`: database version, build time, counts and the list of price days.
