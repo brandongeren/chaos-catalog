@@ -1,4 +1,4 @@
-# Chaos Catalog: design (living document; last updated 2026-10-27)
+# Chaos Catalog: design (living document; last updated 2026-10-30)
 
 A chaos-storage collection manager for trading cards, Yu-Gi-Oh first. Cards go wherever there's room; the app remembers
 where. Runs in any browser (phone or computer), installable as an app, free to host.
@@ -64,10 +64,11 @@ https://brandongeren.github.io/chaos-catalog/data` (reuses the published prices 
 - Card artwork: not built (needs a hosting decision, ~380 MB).
 
 **Open / watch next:**
-- Did GitHub's schedule fire? (The first day's 21:17 UTC run never started; a backup 03:47 UTC slot was added. Check
-  Actions for "schedule" runs.) If unreliable: a Supabase pg_cron job calling workflow_dispatch with a repo-scoped
-  token (needs the user's token; not set up). GitHub also stops schedules after 60 days without commits.
-- Overframe prices appear separately from the next daily price run on.
+- GitHub's schedule fires, but late: both slots ran every day 2026-10-27 to 10-29, starting around 00:30 and 10:00
+  UTC instead of 21:17 and 03:47. Fine as long as it keeps running. Since 2026-10-30 every run re-enables the workflow
+  (`keep-schedule-on` job) so GitHub's 60-days-without-activity rule doesn't switch the schedule off; check that
+  schedule runs continue past 60 days without commits. If unreliable: a Supabase pg_cron job calling workflow_dispatch
+  with a repo-scoped token (needs the user's token; not set up).
 - Camera scanning accuracy on real photos is untested (needs photos from the user).
 - Search speed on a phone with fuzzy on was never measured.
 - Free-tier usage was fine on 2026-10-27 (§16).
@@ -439,6 +440,8 @@ Syntax search could move earlier (after phase 1) if you want it sooner.
   prices and Genesys points. 509 cards have no TCG date (OCG-only); 236 have no `konami_id`.
 - **Sizes:** search catalog (name, text, stats, archetype) ≈ 8.1 MB raw / **1.3 MB gzipped**; per-printing price map
   ≈ 1.0 MB raw / **0.22 MB gzipped** per day, so 28 days ≈ 6 MB.
+- **Overframe prices (checked 2026-10-30):** the 10-29 price file has all 22 overframe printings as their own entries
+  (e.g. MAMO-EN003 1st $146.56 vs $6.24 for the plain Ultra Rare); 102 variant printings are priced separately.
 - **Card artwork:** small images measured at ~25–29 KB each, so **≈ 380 MB** for every card. Fits on GitHub Pages
   (1 GB site limit) or Cloudflare R2 (10 GB free).
 - **Mentions index:** quoted names in card text resolve to 3,418 links across 2,562 cards (e.g. 62 cards mention "Dark
@@ -519,4 +522,5 @@ Syntax search could move earlier (after phase 1) if you want it sooner.
   for changed sets, about 3 minutes at TCGCSV's suggested pace.
 - Search speed on a phone with ~14.6k cards and fuzzy matching on (test in phase 1).
 - A scheduler that doesn't depend on GitHub's (e.g. Supabase pg_cron calling the workflow_dispatch API with a
-  repo-scoped token), if the GitHub schedule proves unreliable or the 60-day rule becomes a problem.
+  repo-scoped token), if the GitHub schedule proves unreliable. The 60-day rule is handled by the `keep-schedule-on`
+  job (2026-10-30), not yet proven past day 60.

@@ -78,3 +78,15 @@ jobs:
           fi
           curl --fail --silent --show-error "$SUPABASE_URL/rest/v1/app_status?select=id" \
             -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY"
+
+  # GitHub turns off a public repo's schedules after 60 days without activity. Re-enabling the workflow on every run
+  # keeps the daily build going even when nothing is committed (the same approach as the common keepalive actions).
+  keep-schedule-on:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Re-enable this workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method PUT "repos/${{ github.repository }}/actions/workflows/deploy.yml/enable"
