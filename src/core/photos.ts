@@ -23,7 +23,8 @@ export async function uploadPhoto(ownerId: string, file: File): Promise<string> 
   const path = `${ownerId}/${crypto.randomUUID()}.webp`
   const { error } = await requireSupabase()
     .storage.from('photos')
-    .upload(path, await toThumbnail(file), { contentType: 'image/webp', upsert: false })
+    // A photo is never overwritten (a new photo gets a new path), so browsers may keep it for a year.
+    .upload(path, await toThumbnail(file), { contentType: 'image/webp', upsert: false, cacheControl: '31536000' })
   if (error) throw new Error(error.message)
   return path
 }

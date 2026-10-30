@@ -208,6 +208,8 @@ what the owner's profile allows (section 9).
   hand: `profiles.is_admin`) create invite links in the app. The very first invite is inserted in the SQL editor.
 - **Photos:** public `photos` bucket, owner-only uploads into `<user id>/`, 200 KB cap, thumbnails made on the device.
   A photo's URL is unguessable but works for anyone who has it, even if the profile is later made private.
+  Uploads since 2026-10-30 are cached by browsers for a year (a photo is never overwritten); older ones for an hour,
+  after which the browser only checks they're unchanged. Each view of an uncached photo counts toward Supabase egress.
 
 ### History and sync
 - **operations**: the single source of history **and** the offline queue.
