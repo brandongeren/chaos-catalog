@@ -353,6 +353,10 @@ cards", off by default).
 - Collection value totals per box, group and deck (hidden for viewers if the owner turned prices off). Built
   2026-10-26: the Collection tab shows each stack's price per copy and line total, group/box values (including
   sub-groups) and the collection total in the sidebar.
+- **Cost Down feed (2026-10-30):** the daily build also writes `data/ygo/cost-down.json` (name, Konami id, alternate
+  passcodes, cheapest price per card, from the newest price day) for Cost Down, the user's sister project: a
+  Chrome/Firefox extension that prices a deck on deck-builder sites and sends it to TCGplayer Mass Entry
+  (`~/claude/cost-down`). Keep its shape stable (`scripts/games/ygo-cost-down.ts`); the extension reads it.
 
 ---
 

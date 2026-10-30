@@ -8,12 +8,14 @@
 // Env TCGCSV_MAX_GROUPS=<n>: price only the first n TCGplayer sets (local testing; see scripts/games/ygo-tcgplayer.ts).
 //
 // Output (per game, under <out>/<game>/): meta.json, catalog.json, prices/<YYYY-MM-DD>.json (last 28 days),
-// tcgplayer-products.json (cache of which TCGplayer product is which printing, read back by the next run).
+// tcgplayer-products.json (cache of which TCGplayer product is which printing, read back by the next run),
+// cost-down.json (names, Konami ids and cheapest prices for the Cost Down extension; scripts/games/ygo-cost-down.ts).
 
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { buildYgo } from './games/ygo.ts'
+import { costDownFile } from './games/ygo-cost-down.ts'
 
 const { values } = parseArgs({
   options: {
@@ -45,6 +47,7 @@ async function main() {
   await writeJson(path.join(dir, 'catalog.json'), catalog)
   await writeJson(path.join(dir, 'tcgplayer-products.json'), products)
   for (const [date, day] of prices) await writeJson(path.join(dir, 'prices', `${date}.json`), day)
+  await writeJson(path.join(dir, 'cost-down.json'), costDownFile(catalog, prices.get(meta.priceDays[0])))
   // Drop price files older than the 28 kept days.
   const keep = new Set(meta.priceDays.map((d) => `${d}.json`))
   await mkdir(path.join(dir, 'prices'), { recursive: true }) // first run with no prices yet
